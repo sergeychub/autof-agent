@@ -1,13 +1,16 @@
 {
   "version": 2,
-  "dgSpecHash": "3iR4XGQ5tOY=",
+  "dgSpecHash": "v7vEOdUQ4wg=",
   "success": true,
   "projectFilePath": "C:\\Users\\Serge\\projects\\workstation-agent\\WorkstationAgent\\WorkstationAgent.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Serge\\.nuget\\packages\\socketio.core\\3.1.2\\socketio.core.3.1.2.nupkg.sha512",
     "C:\\Users\\Serge\\.nuget\\packages\\socketio.serializer.core\\3.1.2\\socketio.serializer.core.3.1.2.nupkg.sha512",
     "C:\\Users\\Serge\\.nuget\\packages\\socketio.serializer.systemtextjson\\3.1.2\\socketio.serializer.systemtextjson.3.1.2.nupkg.sha512",
-    "C:\\Users\\Serge\\.nuget\\packages\\socketioclient\\3.1.2\\socketioclient.3.1.2.nupkg.sha512"
+    "C:\\Users\\Serge\\.nuget\\packages\\socketioclient\\3.1.2\\socketioclient.3.1.2.nupkg.sha512",
+    "C:\\Users\\Serge\\.nuget\\packages\\microsoft.netcore.app.runtime.win-x64\\10.0.5\\microsoft.netcore.app.runtime.win-x64.10.0.5.nupkg.sha512",
+    "C:\\Users\\Serge\\.nuget\\packages\\microsoft.windowsdesktop.app.runtime.win-x64\\10.0.5\\microsoft.windowsdesktop.app.runtime.win-x64.10.0.5.nupkg.sha512",
+    "C:\\Users\\Serge\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.win-x64\\10.0.5\\microsoft.aspnetcore.app.runtime.win-x64.10.0.5.nupkg.sha512"
   ],
   "logs": []
 }

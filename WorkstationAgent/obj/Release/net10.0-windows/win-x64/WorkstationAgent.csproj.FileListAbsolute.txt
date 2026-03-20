@@ -285,3 +285,6 @@ C:\Users\Serge\projects\workstation-agent\WorkstationAgent\obj\Release\net10.0-w
 C:\Users\Serge\projects\workstation-agent\WorkstationAgent\obj\Release\net10.0-windows\win-x64\WorkstationAgent.pdb
 C:\Users\Serge\projects\workstation-agent\WorkstationAgent\obj\Release\net10.0-windows\win-x64\WorkstationAgent.genruntimeconfig.cache
 C:\Users\Serge\projects\workstation-agent\WorkstationAgent\obj\Release\net10.0-windows\win-x64\ref\WorkstationAgent.dll
+C:\Users\Serge\projects\workstation-agent\WorkstationAgent\bin\Release\net10.0-windows\win-x64\Assets\logo.png
+C:\Users\Serge\projects\workstation-agent\WorkstationAgent\bin\Release\net10.0-windows\win-x64\Assets\app.ico
+C:\Users\Serge\projects\workstation-agent\WorkstationAgent\obj\Release\net10.0-windows\win-x64\WorkstationAgent.sourcelink.json
