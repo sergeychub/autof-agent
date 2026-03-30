@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Автофорвад")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+aa68eb9dca6b08aebd0fbdb26bb461769abbc67c")]
 [assembly: System.Reflection.AssemblyProductAttribute("Автофорвад Agent")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Автофорвад Agent")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

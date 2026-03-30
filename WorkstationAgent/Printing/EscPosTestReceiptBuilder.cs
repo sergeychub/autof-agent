@@ -8,7 +8,8 @@ internal sealed class EscPosTestReceiptBuilder
 {
     public byte[] Build(AgentSettings settings)
     {
-        var encoding = Encoding.GetEncoding(settings.CharacterEncoding);
+        var receipt = settings.ReceiptPrinter;
+        var encoding = Encoding.GetEncoding(receipt.CharacterEncoding);
         using var stream = new MemoryStream();
 
         Write(stream, 0x1B, 0x40);
@@ -26,7 +27,7 @@ internal sealed class EscPosTestReceiptBuilder
         WriteLine(stream, encoding, "USB printer channel is ready");
         WriteLine(stream, encoding, "ESC/POS RAW mode");
 
-        for (var i = 0; i < Math.Max(1, settings.FeedLinesAfterPrint); i++)
+        for (var i = 0; i < Math.Max(1, receipt.FeedLinesAfterPrint); i++)
         {
             WriteLine(stream, encoding, string.Empty);
         }

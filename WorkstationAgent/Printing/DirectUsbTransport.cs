@@ -18,7 +18,7 @@ internal sealed class DirectUsbTransport : IPrinterTransport
 
     public bool SupportsImages => true;
 
-    public PrinterTransportResult Probe(AgentSettings settings)
+    public PrinterTransportResult Probe(PrinterEndpointSettings settings)
     {
         try
         {
@@ -42,7 +42,7 @@ internal sealed class DirectUsbTransport : IPrinterTransport
         }
     }
 
-    public void Send(AgentSettings settings, byte[] bytes, string documentName)
+    public void Send(PrinterEndpointSettings settings, byte[] bytes, string documentName)
     {
         var device = _discoveryService.FindBestMatch(settings.UsbVendorId, settings.UsbProductId);
         if (device is null)

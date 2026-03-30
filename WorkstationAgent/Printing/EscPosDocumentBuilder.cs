@@ -81,31 +81,9 @@ internal sealed class EscPosDocumentBuilder
 
     private static AgentSettings ApplyBlockSettings(AgentSettings settings, PrintDocumentBlock block)
     {
-        return new AgentSettings
-        {
-            DeviceId = settings.DeviceId,
-            AgentName = settings.AgentName,
-            ApiBaseUrl = settings.ApiBaseUrl,
-            SocketIoUrl = settings.SocketIoUrl,
-            ApiKey = settings.ApiKey,
-            StartWithWindows = settings.StartWithWindows,
-            PrinterEnabled = settings.PrinterEnabled,
-            PrinterName = settings.PrinterName,
-            TransportMode = settings.TransportMode,
-            UsbVendorId = settings.UsbVendorId,
-            UsbProductId = settings.UsbProductId,
-            UsbInterfaceNumber = settings.UsbInterfaceNumber,
-            UsbOutEndpoint = settings.UsbOutEndpoint,
-            UsbWriteTimeoutMs = settings.UsbWriteTimeoutMs,
-            ImageCommandMode = settings.ImageCommandMode,
-            MaxImageWidthDots = block.MaxWidthDots ?? settings.MaxImageWidthDots,
-            PaperWidth = settings.PaperWidth,
-            CharacterEncoding = settings.CharacterEncoding,
-            FeedLinesAfterPrint = settings.FeedLinesAfterPrint,
-            ReconnectDelaySeconds = settings.ReconnectDelaySeconds,
-            PingIntervalSeconds = settings.PingIntervalSeconds,
-            LogFilePath = settings.LogFilePath
-        };
+        var clone = settings.Clone();
+        clone.ReceiptPrinter.MaxImageWidthDots = block.MaxWidthDots ?? settings.ReceiptPrinter.MaxImageWidthDots;
+        return clone;
     }
 
     private static void WriteAlign(Stream stream, string? align)

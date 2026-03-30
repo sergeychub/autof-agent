@@ -109,3 +109,4 @@ C:\Users\Serge\projects\workstation-agent\artifacts\barcode-low\WorkstationAgent
 C:\Users\Serge\projects\workstation-agent\artifacts\barcode-low\WorkstationAgent.runtimeconfig.json
 C:\Users\Serge\projects\workstation-agent\artifacts\barcode-low\WorkstationAgent.dll
 C:\Users\Serge\projects\workstation-agent\artifacts\barcode-low\WorkstationAgent.pdb
+C:\Users\Serge\projects\workstation-agent\WorkstationAgent\obj\Release\net10.0-windows\WorkstationAgent.sourcelink.json

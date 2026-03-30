@@ -15,7 +15,7 @@ internal sealed class PrinterTransportResolver
         _directUsbTransport = directUsbTransport;
     }
 
-    public IPrinterTransport Resolve(AgentSettings settings)
+    public IPrinterTransport Resolve(PrinterEndpointSettings settings)
     {
         return PrinterTransportMode.IsDirectUsb(settings.TransportMode)
             ? _directUsbTransport

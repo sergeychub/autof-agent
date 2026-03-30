@@ -10,6 +10,9 @@ internal sealed class PrintJobRequest
     [JsonPropertyName("contentType")]
     public string ContentType { get; init; } = "text";
 
+    [JsonPropertyName("target")]
+    public string? Target { get; init; }
+
     [JsonPropertyName("text")]
     public string? Text { get; init; }
 
@@ -27,4 +30,7 @@ internal sealed class PrintJobRequest
 
     [JsonPropertyName("document")]
     public PrintDocument? Document { get; init; }
+
+    [JsonPropertyName("tsplLabel")]
+    public TsplLabel? TsplLabel { get; init; }
 }

@@ -9,7 +9,8 @@ internal sealed class EscPosImageRenderer
     public byte[] BuildLogoTest(AgentSettings settings, string logoPath)
     {
         using var stream = new MemoryStream();
-        var encoding = Encoding.GetEncoding(settings.CharacterEncoding);
+        var receipt = settings.ReceiptPrinter;
+        var encoding = Encoding.GetEncoding(receipt.CharacterEncoding);
 
         Write(stream, 0x1B, 0x40);
         Write(stream, 0x1B, 0x61, 0x01);
@@ -21,7 +22,7 @@ internal sealed class EscPosImageRenderer
         PrintVariant(stream, encoding, settings, logoPath, "4. Logo optimized", MonochromeMode.LogoOptimized);
         PrintVariant(stream, encoding, settings, logoPath, "5. Thermal preset", MonochromeMode.ThermalPreset);
 
-        for (var i = 0; i < Math.Max(1, settings.FeedLinesAfterPrint); i++)
+        for (var i = 0; i < Math.Max(1, receipt.FeedLinesAfterPrint); i++)
         {
             WriteText(stream, encoding, Environment.NewLine);
         }
@@ -45,8 +46,9 @@ internal sealed class EscPosImageRenderer
 
     public void WriteImage(Stream stream, AgentSettings settings, Bitmap source, MonochromeMode mode)
     {
-        using var bitmap = ResizeToPrintableWidth(source, settings.MaxImageWidthDots);
-        if (string.Equals(settings.ImageCommandMode, "esc-star", StringComparison.OrdinalIgnoreCase))
+        var receipt = settings.ReceiptPrinter;
+        using var bitmap = ResizeToPrintableWidth(source, receipt.MaxImageWidthDots);
+        if (string.Equals(receipt.ImageCommandMode, "esc-star", StringComparison.OrdinalIgnoreCase))
         {
             WriteEscStar(stream, bitmap, mode);
             return;

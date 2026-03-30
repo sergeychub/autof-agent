@@ -15,6 +15,8 @@ internal sealed class ThermalPrinterService
     private readonly EscPosPayloadBuilder _payloadBuilder;
     private readonly EscPosImageRenderer _imageRenderer;
     private readonly EscPosDocumentBuilder _documentBuilder;
+    private readonly TsplPayloadBuilder _tsplPayloadBuilder;
+    private readonly TsplTestLabelBuilder _tsplTestLabelBuilder;
     private readonly PrinterTransportResolver _transportResolver;
 
     public ThermalPrinterService(
@@ -26,6 +28,8 @@ internal sealed class ThermalPrinterService
         EscPosPayloadBuilder payloadBuilder,
         EscPosImageRenderer imageRenderer,
         EscPosDocumentBuilder documentBuilder,
+        TsplPayloadBuilder tsplPayloadBuilder,
+        TsplTestLabelBuilder tsplTestLabelBuilder,
         PrinterTransportResolver transportResolver)
     {
         _settings = settings;
@@ -36,54 +40,43 @@ internal sealed class ThermalPrinterService
         _payloadBuilder = payloadBuilder;
         _imageRenderer = imageRenderer;
         _documentBuilder = documentBuilder;
+        _tsplPayloadBuilder = tsplPayloadBuilder;
+        _tsplTestLabelBuilder = tsplTestLabelBuilder;
         _transportResolver = transportResolver;
     }
 
-    public bool IsConfigured => _settings.PrinterEnabled && !string.IsNullOrWhiteSpace(_settings.PrinterName);
+    public bool IsConfigured => IsEndpointConfigured(_settings.ReceiptPrinter) || IsEndpointConfigured(_settings.LabelPrinter);
 
-    public string PrinterName => _settings.PrinterName;
+    public string PrinterName => _settings.ReceiptPrinter.PrinterName;
 
     public string GetAvailabilityStatus()
     {
-        if (!_settings.PrinterEnabled)
-        {
-            return "Printer disabled in config";
-        }
+        return $"Receipt: {GetAvailabilityStatus(_settings.ReceiptPrinter, "Receipt printer")} | Label: {GetAvailabilityStatus(_settings.LabelPrinter, "Label printer")}";
+    }
 
-        if (string.IsNullOrWhiteSpace(_settings.PrinterName))
-        {
-            return "Printer name is not configured";
-        }
+    public string GetPrinterNameForRole(string? role)
+    {
+        return ResolveDestinationName(GetEndpoint(PrinterRoles.IsLabel(role) ? PrinterRoles.Label : PrinterRoles.Receipt));
+    }
 
-        var transport = _transportResolver.Resolve(_settings);
-        var probe = transport.Probe(_settings);
-        return probe.Message;
+    public string GetPrinterNameForRequest(PrintJobRequest? request)
+    {
+        return request is null
+            ? GetPrinterNameForRole(null)
+            : ResolveDestinationName(GetEndpoint(ResolvePrintRole(request)));
     }
 
     public PrinterTestResult PrintTestReceipt(string requestId)
     {
-        var printerName = _settings.PrinterName;
+        var endpoint = _settings.ReceiptPrinter;
+        var printerName = ResolveDestinationName(endpoint);
 
         try
         {
-            if (!_settings.PrinterEnabled)
-            {
-                throw new InvalidOperationException("Printer is disabled in agentsettings.json.");
-            }
-
-            if (string.IsNullOrWhiteSpace(printerName))
-            {
-                throw new InvalidOperationException("PrinterName is not configured in agentsettings.json.");
-            }
-
-            if (!_discoveryService.PrinterExists(printerName))
-            {
-                var installed = string.Join(", ", _discoveryService.GetInstalledPrinters());
-                throw new InvalidOperationException($"Printer '{printerName}' was not found. Installed printers: {installed}");
-            }
+            EnsurePrinterReady(endpoint, "Receipt printer");
 
             var bytes = _receiptBuilder.Build(_settings);
-            SendBytes(bytes, "WorkstationAgent Test Receipt");
+            SendBytes(endpoint, bytes, "WorkstationAgent Test Receipt");
             var printedAt = DateTimeOffset.UtcNow.ToString("O");
 
             _logger.Info($"Test receipt sent to printer '{printerName}'.");
@@ -104,20 +97,60 @@ internal sealed class ThermalPrinterService
             {
                 RequestId = requestId,
                 Success = false,
-                PrinterName = printerName ?? string.Empty,
+                PrinterName = printerName,
                 Error = ex.Message
+            };
+        }
+    }
+
+    public PrintJobResult PrintTsplTestLabel(string requestId)
+    {
+        const string documentName = "WorkstationAgent TSPL Test Label";
+        var endpoint = _settings.LabelPrinter;
+        var printerName = ResolveDestinationName(endpoint);
+
+        try
+        {
+            EnsurePrinterReady(endpoint, "Label printer");
+            var bytes = _tsplTestLabelBuilder.Build(_settings);
+            SendBytes(endpoint, bytes, documentName);
+            var printedAt = DateTimeOffset.UtcNow.ToString("O");
+
+            _logger.Info($"TSPL test label sent to '{printerName}'.");
+
+            return new PrintJobResult
+            {
+                RequestId = requestId,
+                Success = true,
+                PrinterName = printerName,
+                PrintedAt = printedAt,
+                DocumentName = documentName
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"TSPL test label failed for '{printerName}'.", ex);
+
+            return new PrintJobResult
+            {
+                RequestId = requestId,
+                Success = false,
+                PrinterName = printerName,
+                Error = ex.Message,
+                DocumentName = documentName
             };
         }
     }
 
     public PrintJobResult PrintLogoTest(string requestId)
     {
-        var documentName = "WorkstationAgent Logo Test";
-        var printerName = ResolveDestinationName();
+        const string documentName = "WorkstationAgent Logo Test";
+        var endpoint = _settings.ReceiptPrinter;
+        var printerName = ResolveDestinationName(endpoint);
 
         try
         {
-            EnsurePrinterReady(_settings.PrinterName);
+            EnsurePrinterReady(endpoint, "Receipt printer");
 
             if (!File.Exists(_paths.LogoPngPath))
             {
@@ -125,7 +158,7 @@ internal sealed class ThermalPrinterService
             }
 
             var bytes = _imageRenderer.BuildLogoTest(_settings, _paths.LogoPngPath);
-            SendBytes(bytes, documentName);
+            SendBytes(endpoint, bytes, documentName);
             var printedAt = DateTimeOffset.UtcNow.ToString("O");
 
             _logger.Info($"Logo test '{documentName}' sent to '{printerName}'.");
@@ -156,16 +189,18 @@ internal sealed class ThermalPrinterService
 
     public PrintJobResult PrintJob(PrintJobRequest request)
     {
-        var printerName = ResolveDestinationName();
+        var role = ResolvePrintRole(request);
+        var endpoint = GetEndpoint(role);
+        var printerName = ResolveDestinationName(endpoint);
         var documentName = string.IsNullOrWhiteSpace(request.DocumentName)
             ? "WorkstationAgent Print Job"
             : request.DocumentName;
 
         try
         {
-            EnsurePrinterReady(_settings.PrinterName);
-            var bytes = BuildPayload(request);
-            SendBytes(bytes, documentName);
+            EnsurePrinterReady(endpoint, PrinterRoles.IsLabel(role) ? "Label printer" : "Receipt printer");
+            var bytes = BuildPayload(request, role);
+            SendBytes(endpoint, bytes, documentName);
             var printedAt = DateTimeOffset.UtcNow.ToString("O");
 
             _logger.Info($"Print job '{documentName}' sent to printer '{printerName}'.");
@@ -174,7 +209,7 @@ internal sealed class ThermalPrinterService
             {
                 RequestId = request.RequestId,
                 Success = true,
-                PrinterName = printerName!,
+                PrinterName = printerName,
                 PrintedAt = printedAt,
                 DocumentName = documentName
             };
@@ -187,40 +222,40 @@ internal sealed class ThermalPrinterService
             {
                 RequestId = request.RequestId,
                 Success = false,
-                PrinterName = printerName ?? string.Empty,
+                PrinterName = printerName,
                 Error = ex.Message,
                 DocumentName = documentName
             };
         }
     }
 
-    private void EnsurePrinterReady(string? printerName)
+    private void EnsurePrinterReady(PrinterEndpointSettings endpoint, string endpointName)
     {
-        if (!_settings.PrinterEnabled)
+        if (!endpoint.Enabled)
         {
-            throw new InvalidOperationException("Printer is disabled in agentsettings.json.");
+            throw new InvalidOperationException($"{endpointName} is disabled in agentsettings.json.");
         }
 
-        if (!PrinterTransportMode.IsDirectUsb(_settings.TransportMode) && string.IsNullOrWhiteSpace(printerName))
+        if (!PrinterTransportMode.IsDirectUsb(endpoint.TransportMode) && string.IsNullOrWhiteSpace(endpoint.PrinterName))
         {
-            throw new InvalidOperationException("PrinterName is not configured in agentsettings.json.");
+            throw new InvalidOperationException($"{endpointName} name is not configured in agentsettings.json.");
         }
 
-        if (!PrinterTransportMode.IsDirectUsb(_settings.TransportMode) && !_discoveryService.PrinterExists(printerName))
+        if (!PrinterTransportMode.IsDirectUsb(endpoint.TransportMode) && !_discoveryService.PrinterExists(endpoint.PrinterName))
         {
             var installed = string.Join(", ", _discoveryService.GetInstalledPrinters());
-            throw new InvalidOperationException($"Printer '{printerName}' was not found. Installed printers: {installed}");
+            throw new InvalidOperationException($"Printer '{endpoint.PrinterName}' was not found. Installed printers: {installed}");
         }
 
-        var transport = _transportResolver.Resolve(_settings);
-        var probe = transport.Probe(_settings);
+        var transport = _transportResolver.Resolve(endpoint);
+        var probe = transport.Probe(endpoint);
         if (!probe.IsReady)
         {
             throw new InvalidOperationException(probe.Message);
         }
     }
 
-    private byte[] BuildPayload(PrintJobRequest request)
+    private byte[] BuildPayload(PrintJobRequest request, string role)
     {
         if (string.Equals(request.ContentType, "document", StringComparison.OrdinalIgnoreCase))
         {
@@ -229,26 +264,99 @@ internal sealed class ThermalPrinterService
                 throw new InvalidOperationException("Document payload is required for contentType=document.");
             }
 
+            if (PrinterRoles.IsLabel(role))
+            {
+                throw new InvalidOperationException("Label printer does not support contentType=document. Use contentType=tspl-label or raw-base64.");
+            }
+
             return _documentBuilder.Build(_settings, request.Document);
+        }
+
+        if (string.Equals(request.ContentType, "tspl-label", StringComparison.OrdinalIgnoreCase))
+        {
+            if (request.TsplLabel is null)
+            {
+                throw new InvalidOperationException("TsplLabel payload is required for contentType=tspl-label.");
+            }
+
+            return _tsplPayloadBuilder.Build(_settings, request.TsplLabel);
+        }
+
+        if (PrinterRoles.IsLabel(role) && !string.Equals(request.ContentType, "raw-base64", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Label printer accepts only contentType=tspl-label or raw-base64.");
         }
 
         return _payloadBuilder.BuildFromRequest(_settings, request);
     }
 
-    private void SendBytes(byte[] bytes, string documentName)
+    private void SendBytes(PrinterEndpointSettings endpoint, byte[] bytes, string documentName)
     {
-        var transport = _transportResolver.Resolve(_settings);
-        transport.Send(_settings, bytes, documentName);
+        var transport = _transportResolver.Resolve(endpoint);
+        transport.Send(endpoint, bytes, documentName);
     }
 
-    private string ResolveDestinationName()
+    private string ResolveDestinationName(PrinterEndpointSettings endpoint)
     {
-        if (PrinterTransportMode.IsDirectUsb(_settings.TransportMode))
+        if (PrinterTransportMode.IsDirectUsb(endpoint.TransportMode))
         {
-            var probe = _transportResolver.Resolve(_settings).Probe(_settings);
-            return string.IsNullOrWhiteSpace(probe.Message) ? "Direct USB" : probe.Message;
+            try
+            {
+                var probe = _transportResolver.Resolve(endpoint).Probe(endpoint);
+                return string.IsNullOrWhiteSpace(probe.Message) ? "Direct USB" : probe.Message;
+            }
+            catch
+            {
+                return "Direct USB";
+            }
         }
 
-        return _settings.PrinterName;
+        return endpoint.PrinterName;
+    }
+
+    private PrinterEndpointSettings GetEndpoint(string role)
+    {
+        return PrinterRoles.IsLabel(role) ? _settings.LabelPrinter : _settings.ReceiptPrinter;
+    }
+
+    private string ResolvePrintRole(PrintJobRequest request)
+    {
+        if (PrinterRoles.IsLabel(request.Target))
+        {
+            return PrinterRoles.Label;
+        }
+
+        if (PrinterRoles.IsReceipt(request.Target))
+        {
+            return PrinterRoles.Receipt;
+        }
+
+        return string.Equals(request.ContentType, "tspl-label", StringComparison.OrdinalIgnoreCase)
+            ? PrinterRoles.Label
+            : PrinterRoles.Receipt;
+    }
+
+    private string GetAvailabilityStatus(PrinterEndpointSettings endpoint, string endpointName)
+    {
+        if (!endpoint.Enabled)
+        {
+            return $"{endpointName} disabled";
+        }
+
+        if (!PrinterTransportMode.IsDirectUsb(endpoint.TransportMode) && string.IsNullOrWhiteSpace(endpoint.PrinterName))
+        {
+            return $"{endpointName} name is not configured";
+        }
+
+        var transport = _transportResolver.Resolve(endpoint);
+        var probe = transport.Probe(endpoint);
+        return probe.Message;
+    }
+
+    private static bool IsEndpointConfigured(PrinterEndpointSettings endpoint)
+    {
+        return endpoint.Enabled
+            && (PrinterTransportMode.IsDirectUsb(endpoint.TransportMode)
+                || !string.IsNullOrWhiteSpace(endpoint.PrinterName));
     }
 }

@@ -17,7 +17,7 @@ internal sealed class WindowsSpoolerTransport : IPrinterTransport
 
     public bool SupportsImages => true;
 
-    public PrinterTransportResult Probe(AgentSettings settings)
+    public PrinterTransportResult Probe(PrinterEndpointSettings settings)
     {
         if (string.IsNullOrWhiteSpace(settings.PrinterName))
         {
@@ -29,7 +29,7 @@ internal sealed class WindowsSpoolerTransport : IPrinterTransport
             : PrinterTransportResult.Unavailable($"Printer not found in Windows: {settings.PrinterName}");
     }
 
-    public void Send(AgentSettings settings, byte[] bytes, string documentName)
+    public void Send(PrinterEndpointSettings settings, byte[] bytes, string documentName)
     {
         _rawPrinterClient.Send(settings.PrinterName, bytes, documentName);
     }

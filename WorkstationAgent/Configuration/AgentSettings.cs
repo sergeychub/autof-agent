@@ -22,44 +22,11 @@ internal sealed class AgentSettings
     [JsonPropertyName("startWithWindows")]
     public bool StartWithWindows { get; set; } = true;
 
-    [JsonPropertyName("printerEnabled")]
-    public bool PrinterEnabled { get; set; } = true;
+    [JsonPropertyName("receiptPrinter")]
+    public ReceiptPrinterSettings ReceiptPrinter { get; set; } = new();
 
-    [JsonPropertyName("printerName")]
-    public string PrinterName { get; set; } = string.Empty;
-
-    [JsonPropertyName("transportMode")]
-    public string TransportMode { get; set; } = "windows-spooler";
-
-    [JsonPropertyName("usbVendorId")]
-    public string? UsbVendorId { get; set; }
-
-    [JsonPropertyName("usbProductId")]
-    public string? UsbProductId { get; set; }
-
-    [JsonPropertyName("usbInterfaceNumber")]
-    public int? UsbInterfaceNumber { get; set; }
-
-    [JsonPropertyName("usbOutEndpoint")]
-    public string? UsbOutEndpoint { get; set; }
-
-    [JsonPropertyName("usbWriteTimeoutMs")]
-    public int UsbWriteTimeoutMs { get; set; } = 3000;
-
-    [JsonPropertyName("imageCommandMode")]
-    public string ImageCommandMode { get; set; } = "gs-v-0";
-
-    [JsonPropertyName("maxImageWidthDots")]
-    public int MaxImageWidthDots { get; set; } = 384;
-
-    [JsonPropertyName("paperWidth")]
-    public string PaperWidth { get; set; } = "58mm";
-
-    [JsonPropertyName("characterEncoding")]
-    public string CharacterEncoding { get; set; } = "cp866";
-
-    [JsonPropertyName("feedLinesAfterPrint")]
-    public int FeedLinesAfterPrint { get; set; } = 4;
+    [JsonPropertyName("labelPrinter")]
+    public LabelPrinterSettings LabelPrinter { get; set; } = new();
 
     [JsonPropertyName("reconnectDelaySeconds")]
     public int ReconnectDelaySeconds { get; set; } = 5;
@@ -70,8 +37,140 @@ internal sealed class AgentSettings
     [JsonPropertyName("logFilePath")]
     public string? LogFilePath { get; set; }
 
+    [JsonPropertyName("printerEnabled")]
+    public bool LegacyPrinterEnabled
+    {
+        set => ReceiptPrinter.Enabled = value;
+    }
+
+    [JsonPropertyName("printerName")]
+    public string LegacyPrinterName
+    {
+        set => ReceiptPrinter.PrinterName = value;
+    }
+
+    [JsonPropertyName("transportMode")]
+    public string LegacyTransportMode
+    {
+        set => ReceiptPrinter.TransportMode = value;
+    }
+
+    [JsonPropertyName("usbVendorId")]
+    public string? LegacyUsbVendorId
+    {
+        set => ReceiptPrinter.UsbVendorId = value;
+    }
+
+    [JsonPropertyName("usbProductId")]
+    public string? LegacyUsbProductId
+    {
+        set => ReceiptPrinter.UsbProductId = value;
+    }
+
+    [JsonPropertyName("usbInterfaceNumber")]
+    public int? LegacyUsbInterfaceNumber
+    {
+        set => ReceiptPrinter.UsbInterfaceNumber = value;
+    }
+
+    [JsonPropertyName("usbOutEndpoint")]
+    public string? LegacyUsbOutEndpoint
+    {
+        set => ReceiptPrinter.UsbOutEndpoint = value;
+    }
+
+    [JsonPropertyName("usbWriteTimeoutMs")]
+    public int LegacyUsbWriteTimeoutMs
+    {
+        set => ReceiptPrinter.UsbWriteTimeoutMs = value;
+    }
+
+    [JsonPropertyName("imageCommandMode")]
+    public string LegacyImageCommandMode
+    {
+        set => ReceiptPrinter.ImageCommandMode = value;
+    }
+
+    [JsonPropertyName("maxImageWidthDots")]
+    public int LegacyMaxImageWidthDots
+    {
+        set => ReceiptPrinter.MaxImageWidthDots = value;
+    }
+
+    [JsonPropertyName("paperWidth")]
+    public string LegacyPaperWidth
+    {
+        set => ReceiptPrinter.PaperWidth = value;
+    }
+
+    [JsonPropertyName("characterEncoding")]
+    public string LegacyCharacterEncoding
+    {
+        set => ReceiptPrinter.CharacterEncoding = value;
+    }
+
+    [JsonPropertyName("feedLinesAfterPrint")]
+    public int LegacyFeedLinesAfterPrint
+    {
+        set => ReceiptPrinter.FeedLinesAfterPrint = value;
+    }
+
+    [JsonPropertyName("tsplLabelWidthMm")]
+    public double LegacyTsplLabelWidthMm
+    {
+        set => LabelPrinter.TsplLabelWidthMm = value;
+    }
+
+    [JsonPropertyName("tsplLabelHeightMm")]
+    public double LegacyTsplLabelHeightMm
+    {
+        set => LabelPrinter.TsplLabelHeightMm = value;
+    }
+
+    [JsonPropertyName("tsplLabelGapMm")]
+    public double LegacyTsplLabelGapMm
+    {
+        set => LabelPrinter.TsplLabelGapMm = value;
+    }
+
+    [JsonPropertyName("tsplDirection")]
+    public int LegacyTsplDirection
+    {
+        set => LabelPrinter.TsplDirection = value;
+    }
+
+    [JsonPropertyName("tsplSpeed")]
+    public int LegacyTsplSpeed
+    {
+        set => LabelPrinter.TsplSpeed = value;
+    }
+
+    [JsonPropertyName("tsplDensity")]
+    public int LegacyTsplDensity
+    {
+        set => LabelPrinter.TsplDensity = value;
+    }
+
     public static AgentSettings CreateDefault()
     {
         return new AgentSettings();
+    }
+
+    public AgentSettings Clone()
+    {
+        return new AgentSettings
+        {
+            DeviceId = DeviceId,
+            AgentName = AgentName,
+            ApiBaseUrl = ApiBaseUrl,
+            SocketIoUrl = SocketIoUrl,
+            ApiKey = ApiKey,
+            StartWithWindows = StartWithWindows,
+            ReceiptPrinter = ReceiptPrinter.Clone(),
+            LabelPrinter = LabelPrinter.Clone(),
+            ReconnectDelaySeconds = ReconnectDelaySeconds,
+            PingIntervalSeconds = PingIntervalSeconds,
+            LogFilePath = LogFilePath
+        };
     }
 }

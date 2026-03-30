@@ -33,6 +33,7 @@ internal sealed class AgentApplicationContext : ApplicationContext
             new Printing.WindowsSpoolerTransport(discoveryService, rawPrinterClient),
             new Printing.DirectUsbTransport(new Printing.UsbPrinterDiscoveryService(), new Printing.DirectUsbPrinterClient()));
         var imageRenderer = new Printing.EscPosImageRenderer();
+        var tsplPayloadBuilder = new Printing.TsplPayloadBuilder();
         _thermalPrinterService = new ThermalPrinterService(
             settings,
             paths,
@@ -42,6 +43,8 @@ internal sealed class AgentApplicationContext : ApplicationContext
             new Printing.EscPosPayloadBuilder(),
             imageRenderer,
             new Printing.EscPosDocumentBuilder(imageRenderer),
+            tsplPayloadBuilder,
+            new Printing.TsplTestLabelBuilder(tsplPayloadBuilder),
             transportResolver);
         _webSocketClient = new AgentWebSocketClient(settings, _logger, _thermalPrinterService);
         _webSocketClient.StatusChanged += HandleStatusChanged;
@@ -93,6 +96,7 @@ internal sealed class AgentApplicationContext : ApplicationContext
         menu.Items.Add("Open config file", null, (_, _) => OpenPath(_settingsStore.SettingsPath));
         menu.Items.Add("Print test receipt", null, (_, _) => PrintTestReceipt());
         menu.Items.Add("Print test logo", null, (_, _) => PrintTestLogo());
+        menu.Items.Add("Print test label", null, (_, _) => PrintTestLabel());
         menu.Items.Add("Open logs", null, (_, _) => OpenLogsFolder());
         menu.Items.Add("Exit", null, (_, _) => ExitThread());
         return menu;
@@ -141,6 +145,20 @@ internal sealed class AgentApplicationContext : ApplicationContext
         var text = result.Success
             ? $"Logo printed: {result.PrinterName}"
             : $"Logo print failed: {result.Error}";
+
+        _notifyIcon.ShowBalloonTip(
+            3000,
+            AvtoforwardBranding.AppName,
+            text,
+            result.Success ? ToolTipIcon.Info : ToolTipIcon.Error);
+    }
+
+    private void PrintTestLabel()
+    {
+        var result = _thermalPrinterService.PrintTsplTestLabel(Guid.NewGuid().ToString("N"));
+        var text = result.Success
+            ? $"Label printed: {result.PrinterName}"
+            : $"Label print failed: {result.Error}";
 
         _notifyIcon.ShowBalloonTip(
             3000,

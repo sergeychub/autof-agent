@@ -8,7 +8,7 @@ internal interface IPrinterTransport
 
     bool SupportsImages { get; }
 
-    PrinterTransportResult Probe(AgentSettings settings);
+    PrinterTransportResult Probe(PrinterEndpointSettings settings);
 
-    void Send(AgentSettings settings, byte[] bytes, string documentName);
+    void Send(PrinterEndpointSettings settings, byte[] bytes, string documentName);
 }

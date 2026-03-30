@@ -8,6 +8,8 @@ internal sealed class EscPosPayloadBuilder
 {
     public byte[] BuildFromRequest(AgentSettings settings, PrintJobRequest request)
     {
+        var receipt = settings.ReceiptPrinter;
+
         if (string.Equals(request.ContentType, "raw-base64", StringComparison.OrdinalIgnoreCase))
         {
             if (string.IsNullOrWhiteSpace(request.Base64Payload))
@@ -21,10 +23,10 @@ internal sealed class EscPosPayloadBuilder
         if (string.Equals(request.ContentType, "text", StringComparison.OrdinalIgnoreCase))
         {
             var encodingName = string.IsNullOrWhiteSpace(request.Encoding)
-                ? settings.CharacterEncoding
+                ? receipt.CharacterEncoding
                 : request.Encoding;
             var encoding = Encoding.GetEncoding(encodingName);
-            var feedLines = request.FeedLinesAfterPrint ?? settings.FeedLinesAfterPrint;
+            var feedLines = request.FeedLinesAfterPrint ?? receipt.FeedLinesAfterPrint;
             var text = request.Text ?? string.Empty;
 
             using var stream = new MemoryStream();

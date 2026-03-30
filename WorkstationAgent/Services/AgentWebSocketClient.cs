@@ -208,7 +208,7 @@ internal sealed class AgentWebSocketClient : IAsyncDisposable
             {
                 RequestId = fallbackRequestId,
                 Success = false,
-                PrinterName = _thermalPrinterService.PrinterName,
+                PrinterName = _thermalPrinterService.GetPrinterNameForRole(PrinterRoles.Receipt),
                 Error = ex.Message
             });
         }
@@ -229,16 +229,18 @@ internal sealed class AgentWebSocketClient : IAsyncDisposable
             {
                 RequestId = requestId,
                 ContentType = request.ContentType,
+                Target = request.Target,
                 Text = request.Text,
                 Base64Payload = request.Base64Payload,
                 Encoding = request.Encoding,
                 DocumentName = request.DocumentName,
                 FeedLinesAfterPrint = request.FeedLinesAfterPrint,
-                Document = request.Document
+                Document = request.Document,
+                TsplLabel = request.TsplLabel
             };
 
             _logger.Info(
-                $"Received printer:job command. RequestId={requestId}, ContentType={request.ContentType}, TextLength={request.Text?.Length ?? 0}, Base64Length={request.Base64Payload?.Length ?? 0}, Blocks={request.Document?.Blocks.Count ?? 0}, Document={request.DocumentName ?? "n/a"}");
+                $"Received printer:job command. RequestId={requestId}, Target={request.Target ?? "auto"}, ContentType={request.ContentType}, TextLength={request.Text?.Length ?? 0}, Base64Length={request.Base64Payload?.Length ?? 0}, Blocks={request.Document?.Blocks.Count ?? 0}, Document={request.DocumentName ?? "n/a"}");
             var result = _thermalPrinterService.PrintJob(request);
             await socket.EmitAsync("printer:job:result", result);
             _logger.Info($"printer:job:result sent. Success={result.Success}, Printer={result.PrinterName}, Document={result.DocumentName}");
@@ -257,7 +259,7 @@ internal sealed class AgentWebSocketClient : IAsyncDisposable
             {
                 RequestId = fallbackRequestId,
                 Success = false,
-                PrinterName = _thermalPrinterService.PrinterName,
+                PrinterName = _thermalPrinterService.GetPrinterNameForRequest(request),
                 Error = ex.Message,
                 DocumentName = request?.DocumentName
             });
