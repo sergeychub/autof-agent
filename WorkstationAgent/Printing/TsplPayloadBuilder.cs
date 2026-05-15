@@ -199,6 +199,7 @@ internal sealed class TsplPayloadBuilder
                     var x = byteIndex * 8 + bit;
                     if (x >= bitmap.Width)
                     {
+                        packed |= (byte)(0x80 >> bit);
                         continue;
                     }
 
