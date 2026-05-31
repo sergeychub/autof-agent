@@ -48,6 +48,24 @@ function Grant-ProgramDataAccess {
     & icacls.exe $programDataDir /grant $grant /T /C | Out-Null
 }
 
+function Start-AgentBestEffort {
+    if (-not (Test-Path -LiteralPath $exePath)) {
+        Write-Warning "Agent executable was not found after install: $exePath"
+        return
+    }
+
+    try {
+        $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+        $startInfo.FileName = $exePath
+        $startInfo.WorkingDirectory = $programFilesDir
+        $startInfo.UseShellExecute = $false
+        [System.Diagnostics.Process]::Start($startInfo) | Out-Null
+    }
+    catch {
+        Write-Warning "Agent was installed, but could not be started automatically: $($_.Exception.Message)"
+    }
+}
+
 New-Item -ItemType Directory -Force -Path $programFilesDir | Out-Null
 New-Item -ItemType Directory -Force -Path $programDataDir | Out-Null
 New-Item -ItemType Directory -Force -Path $startMenuDir | Out-Null
@@ -116,7 +134,7 @@ Register-ScheduledTask `
     -Force | Out-Null
 
 if ($StartAfterInstall) {
-    Start-Process -FilePath $exePath -WorkingDirectory $programFilesDir
+    Start-AgentBestEffort
 }
 
 Write-Host "Installed Avtoforward Agent to $programFilesDir"
