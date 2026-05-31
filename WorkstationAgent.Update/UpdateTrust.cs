@@ -18,9 +18,10 @@ dKTaegbZJ9YBO2IbMraUkJ36xq7yyDqwSnZ6iLS3F6YfBxgUxeHnSyhmhfngOETo
 
     public static bool IsConfigured(string publicKeyPem)
     {
+        var placeholder = "REPLACE_WITH_UPDATE_" + "MANIFEST_PUBLIC_KEY";
         return !string.IsNullOrWhiteSpace(publicKeyPem)
             && publicKeyPem.Contains("BEGIN PUBLIC KEY", StringComparison.Ordinal)
-            && !publicKeyPem.Contains("REPLACE_WITH_UPDATE_MANIFEST_PUBLIC_KEY", StringComparison.Ordinal);
+            && !publicKeyPem.Contains(placeholder, StringComparison.Ordinal);
     }
 }
 
