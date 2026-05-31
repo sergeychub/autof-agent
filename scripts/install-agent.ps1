@@ -90,6 +90,22 @@ $escapedInstallDir = $programFilesDir.Replace("'", "''")
 $escapedProgramDataDir = $programDataDir.Replace("'", "''")
 $runnerScript = @"
 `$ErrorActionPreference = "Stop"
+try {
+    Add-Type -Namespace AvtoforwardAgent -Name NativeMethods -MemberDefinition @'
+[System.Runtime.InteropServices.DllImport("kernel32.dll")]
+public static extern System.IntPtr GetConsoleWindow();
+
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern bool ShowWindow(System.IntPtr hWnd, int nCmdShow);
+'@
+    `$consoleWindow = [AvtoforwardAgent.NativeMethods]::GetConsoleWindow()
+    if (`$consoleWindow -ne [System.IntPtr]::Zero) {
+        [AvtoforwardAgent.NativeMethods]::ShowWindow(`$consoleWindow, 0) | Out-Null
+    }
+}
+catch {
+}
+
 `$installDir = '$escapedInstallDir'
 `$programDataDir = '$escapedProgramDataDir'
 `$runnerDir = Join-Path `$programDataDir "updates\runner"

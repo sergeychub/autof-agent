@@ -419,6 +419,22 @@ internal static class Program
             var programDataDir = PowerShellSingleQuoted(paths.BaseDirectory);
             var script = $$"""
 $ErrorActionPreference = "Stop"
+try {
+    Add-Type -Namespace AvtoforwardAgent -Name NativeMethods -MemberDefinition @'
+[System.Runtime.InteropServices.DllImport("kernel32.dll")]
+public static extern System.IntPtr GetConsoleWindow();
+
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern bool ShowWindow(System.IntPtr hWnd, int nCmdShow);
+'@
+    $consoleWindow = [AvtoforwardAgent.NativeMethods]::GetConsoleWindow()
+    if ($consoleWindow -ne [System.IntPtr]::Zero) {
+        [AvtoforwardAgent.NativeMethods]::ShowWindow($consoleWindow, 0) | Out-Null
+    }
+}
+catch {
+}
+
 $installDir = '{{installDir}}'
 $programDataDir = '{{programDataDir}}'
 $runnerDir = Join-Path $programDataDir "updates\runner"
