@@ -1,0 +1,141 @@
+name: Workstation Agent Main Update
+
+on:
+  pull_request:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    env:
+      RUNTIME: win-x64
+      UPDATE_PUBLISH_URL: ${{ secrets.UPDATE_PUBLISH_URL }}
+      UPDATE_PUBLISH_TOKEN: ${{ secrets.UPDATE_PUBLISH_TOKEN }}
+      UPDATE_MANIFEST_PRIVATE_KEY: ${{ secrets.UPDATE_MANIFEST_PRIVATE_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Guard update trust key
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: |
+          if (Select-String -Path WorkstationAgent.Update/UpdateTrust.cs -Pattern 'REPLACE_WITH_UPDATE_MANIFEST_PUBLIC_KEY' -Quiet) {
+            throw 'UpdateTrust.cs still contains the manifest public key placeholder. Run scripts/new-update-signing-key.ps1 -UpdatePublicKey and store the private key in UPDATE_MANIFEST_PRIVATE_KEY.'
+          }
+
+      - name: Compute version
+        shell: pwsh
+        run: |
+          $shortSha = '${{ github.sha }}'.Substring(0, 12)
+          $version = "0.1.${{ github.run_number }}+$shortSha"
+          $releaseId = "main-${{ github.run_number }}-$shortSha"
+          "AGENT_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "RELEASE_ID=$releaseId" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "SHORT_SHA=$shortSha" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore workstation-agent.sln --configfile WorkstationAgent/NuGet.Config
+
+      - name: Publish
+        shell: pwsh
+        run: ./scripts/publish-production.ps1 -Runtime $env:RUNTIME -Version $env:AGENT_VERSION
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $publishDir = Join-Path $PWD "artifacts/publish/$env:RUNTIME"
+          $packageDir = Join-Path $PWD "artifacts/package"
+          New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
+          $zipPath = Join-Path $packageDir "WorkstationAgent-$env:RUNTIME-$env:RELEASE_ID.zip"
+          if (Test-Path -LiteralPath $zipPath) {
+            Remove-Item -LiteralPath $zipPath -Force
+          }
+          Compress-Archive -Path (Join-Path $publishDir '*') -DestinationPath $zipPath -Force
+          "PACKAGE_PATH=$zipPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Create signed manifest
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:UPDATE_MANIFEST_PRIVATE_KEY)) {
+            throw 'UPDATE_MANIFEST_PRIVATE_KEY secret is required.'
+          }
+
+          $sha256 = (Get-FileHash -Path $env:PACKAGE_PATH -Algorithm SHA256).Hash.ToLowerInvariant()
+          $sizeBytes = (Get-Item -LiteralPath $env:PACKAGE_PATH).Length
+          $publishedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
+          $downloadUrl = "/workstation-agent/update/download/$env:RELEASE_ID"
+          $payload = @(
+            $env:RELEASE_ID,
+            'main',
+            $env:RUNTIME,
+            $env:AGENT_VERSION,
+            '${{ github.sha }}',
+            $publishedAtUtc,
+            $sizeBytes.ToString([System.Globalization.CultureInfo]::InvariantCulture),
+            $sha256,
+            $downloadUrl
+          ) -join "`n"
+
+          $rsa = [System.Security.Cryptography.RSA]::Create()
+          $rsa.ImportFromPem($env:UPDATE_MANIFEST_PRIVATE_KEY)
+          $signatureBytes = $rsa.SignData(
+            [System.Text.Encoding]::UTF8.GetBytes($payload),
+            [System.Security.Cryptography.HashAlgorithmName]::SHA256,
+            [System.Security.Cryptography.RSASignaturePadding]::Pss)
+          $signature = [Convert]::ToBase64String($signatureBytes)
+
+          $manifest = [ordered]@{
+            releaseId = $env:RELEASE_ID
+            channel = 'main'
+            runtime = $env:RUNTIME
+            version = $env:AGENT_VERSION
+            commitSha = '${{ github.sha }}'
+            publishedAtUtc = $publishedAtUtc
+            sizeBytes = $sizeBytes
+            sha256 = $sha256
+            downloadUrl = $downloadUrl
+            signature = $signature
+          }
+
+          $manifestPath = Join-Path $PWD "artifacts/package/manifest.json"
+          $manifest | ConvertTo-Json -Depth 4 | Set-Content -Path $manifestPath -Encoding UTF8
+          "MANIFEST_PATH=$manifestPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Publish update to backend
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:UPDATE_PUBLISH_URL) -or [string]::IsNullOrWhiteSpace($env:UPDATE_PUBLISH_TOKEN)) {
+            throw 'UPDATE_PUBLISH_URL and UPDATE_PUBLISH_TOKEN secrets are required.'
+          }
+
+          Invoke-RestMethod `
+            -Uri $env:UPDATE_PUBLISH_URL `
+            -Method Post `
+            -Headers @{ Authorization = "Bearer $env:UPDATE_PUBLISH_TOKEN" } `
+            -Form @{
+              manifest = Get-Item -LiteralPath $env:MANIFEST_PATH
+              artifact = Get-Item -LiteralPath $env:PACKAGE_PATH
+            }
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: workstation-agent-${{ env.RUNTIME }}-${{ env.RELEASE_ID }}
+          path: |
+            ${{ env.PACKAGE_PATH }}
+            artifacts/package/manifest.json
+          if-no-files-found: ignore

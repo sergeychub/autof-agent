@@ -37,6 +37,18 @@ internal sealed class AgentSettings
     [JsonPropertyName("logFilePath")]
     public string? LogFilePath { get; set; }
 
+    [JsonPropertyName("autoUpdateEnabled")]
+    public bool AutoUpdateEnabled { get; set; } = true;
+
+    [JsonPropertyName("updateChannel")]
+    public string UpdateChannel { get; set; } = "main";
+
+    [JsonPropertyName("updateCheckIntervalMinutes")]
+    public int UpdateCheckIntervalMinutes { get; set; } = 15;
+
+    [JsonPropertyName("updateJitterMinutes")]
+    public int UpdateJitterMinutes { get; set; } = 10;
+
     [JsonPropertyName("printerEnabled")]
     public bool LegacyPrinterEnabled
     {
@@ -170,7 +182,11 @@ internal sealed class AgentSettings
             LabelPrinter = LabelPrinter.Clone(),
             ReconnectDelaySeconds = ReconnectDelaySeconds,
             PingIntervalSeconds = PingIntervalSeconds,
-            LogFilePath = LogFilePath
+            LogFilePath = LogFilePath,
+            AutoUpdateEnabled = AutoUpdateEnabled,
+            UpdateChannel = UpdateChannel,
+            UpdateCheckIntervalMinutes = UpdateCheckIntervalMinutes,
+            UpdateJitterMinutes = UpdateJitterMinutes
         };
     }
 }

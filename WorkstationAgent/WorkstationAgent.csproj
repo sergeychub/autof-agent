@@ -6,6 +6,10 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
+    <Version>0.1.0</Version>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.0</FileVersion>
+    <InformationalVersion>0.1.0-local</InformationalVersion>
     <AssemblyTitle>Автофорвад Agent</AssemblyTitle>
     <Product>Автофорвад Agent</Product>
     <Company>Автофорвад</Company>
@@ -14,6 +18,10 @@
 
   <ItemGroup>
     <PackageReference Include="SocketIOClient" Version="3.1.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\WorkstationAgent.Update\WorkstationAgent.Update.csproj" />
   </ItemGroup>
 
   <ItemGroup>

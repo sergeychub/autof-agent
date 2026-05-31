@@ -12,14 +12,23 @@ internal sealed class AgentWebSocketClient : IAsyncDisposable
     private readonly AgentSettings _settings;
     private readonly FileLogger _logger;
     private readonly ThermalPrinterService _thermalPrinterService;
+    private readonly Func<string> _lastUpdateStatusProvider;
+    private readonly Func<string> _agentVersionProvider;
     private SocketIOClient.SocketIO? _socket;
     private TaskCompletionSource _connectedSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    public AgentWebSocketClient(AgentSettings settings, FileLogger logger, ThermalPrinterService thermalPrinterService)
+    public AgentWebSocketClient(
+        AgentSettings settings,
+        FileLogger logger,
+        ThermalPrinterService thermalPrinterService,
+        Func<string> lastUpdateStatusProvider,
+        Func<string> agentVersionProvider)
     {
         _settings = settings;
         _logger = logger;
         _thermalPrinterService = thermalPrinterService;
+        _lastUpdateStatusProvider = lastUpdateStatusProvider;
+        _agentVersionProvider = agentVersionProvider;
     }
 
     public event Action<string>? StatusChanged;
@@ -97,7 +106,10 @@ internal sealed class AgentWebSocketClient : IAsyncDisposable
                 agentName = _settings.AgentName,
                 machineName = Environment.MachineName,
                 userName = Environment.UserName,
-                apiKey = _settings.ApiKey
+                apiKey = _settings.ApiKey,
+                agentVersion = _agentVersionProvider(),
+                updateChannel = _settings.UpdateChannel,
+                lastUpdateStatus = _lastUpdateStatusProvider()
             }
         });
 
@@ -148,6 +160,9 @@ internal sealed class AgentWebSocketClient : IAsyncDisposable
                 agentName = _settings.AgentName,
                 machineName = Environment.MachineName,
                 userName = Environment.UserName,
+                agentVersion = _agentVersionProvider(),
+                updateChannel = _settings.UpdateChannel,
+                lastUpdateStatus = _lastUpdateStatusProvider(),
                 timestamp = DateTimeOffset.UtcNow
             };
 

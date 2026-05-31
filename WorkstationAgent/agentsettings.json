@@ -40,5 +40,9 @@
   },
   "reconnectDelaySeconds": 5,
   "pingIntervalSeconds": 30,
-  "logFilePath": ""
+  "logFilePath": "",
+  "autoUpdateEnabled": true,
+  "updateChannel": "main",
+  "updateCheckIntervalMinutes": 15,
+  "updateJitterMinutes": 10
 }

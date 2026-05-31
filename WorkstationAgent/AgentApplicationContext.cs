@@ -5,6 +5,7 @@ using WorkstationAgent.Configuration;
 using WorkstationAgent.Forms;
 using WorkstationAgent.Infrastructure;
 using WorkstationAgent.Services;
+using WorkstationAgent.Update;
 
 namespace WorkstationAgent;
 
@@ -13,6 +14,8 @@ internal sealed class AgentApplicationContext : ApplicationContext
     private readonly NotifyIcon _notifyIcon;
     private readonly FileLogger _logger;
     private readonly AgentWebSocketClient _webSocketClient;
+    private readonly UpdateCheckService _updateCheckService;
+    private readonly UpdateStateStore _updateStateStore;
     private readonly ThermalPrinterService _thermalPrinterService;
     private readonly CancellationTokenSource _shutdown = new();
     private readonly SynchronizationContext _uiContext;
@@ -27,6 +30,7 @@ internal sealed class AgentApplicationContext : ApplicationContext
         _settings = settings;
         _uiContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
         _logger = new FileLogger(settings.LogFilePath);
+        _updateStateStore = new UpdateStateStore(paths.UpdateStatePath);
         var discoveryService = new Printing.PrinterDiscoveryService();
         var rawPrinterClient = new Printing.RawPrinterClient();
         var transportResolver = new Printing.PrinterTransportResolver(
@@ -46,7 +50,13 @@ internal sealed class AgentApplicationContext : ApplicationContext
             tsplPayloadBuilder,
             new Printing.TsplTestLabelBuilder(tsplPayloadBuilder),
             transportResolver);
-        _webSocketClient = new AgentWebSocketClient(settings, _logger, _thermalPrinterService);
+        _webSocketClient = new AgentWebSocketClient(
+            settings,
+            _logger,
+            _thermalPrinterService,
+            () => _updateStateStore.ReadStatus(),
+            () => AgentVersionProvider.CurrentVersion);
+        _updateCheckService = new UpdateCheckService(settings, paths, _logger, _updateStateStore);
         _webSocketClient.StatusChanged += HandleStatusChanged;
         _webSocketClient.MessageReceived += HandleMessageReceived;
 
@@ -73,6 +83,7 @@ internal sealed class AgentApplicationContext : ApplicationContext
         _logger.Info(_thermalPrinterService.GetAvailabilityStatus());
 
         _ = Task.Run(() => _webSocketClient.RunAsync(_shutdown.Token));
+        _ = Task.Run(() => _updateCheckService.RunAsync(_shutdown.Token));
     }
 
     protected override void Dispose(bool disposing)
@@ -81,6 +92,7 @@ internal sealed class AgentApplicationContext : ApplicationContext
         {
             _shutdown.Cancel();
             _webSocketClient.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            _updateCheckService.Dispose();
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();
             _shutdown.Dispose();
