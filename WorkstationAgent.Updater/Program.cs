@@ -3,6 +3,7 @@ using System.IO.Compression;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
+using System.Security.Principal;
 using System.Text.Json;
 using WorkstationAgent.Update;
 
@@ -17,7 +18,9 @@ internal static class Program
     private static async Task<int> Main(string[] args)
     {
         var paths = UpdaterPaths.Create(args);
+        Directory.CreateDirectory(paths.BaseDirectory);
         Directory.CreateDirectory(paths.LogsDirectory);
+        TryGrantProgramDataAccess(paths);
         using var mutex = new Mutex(initiallyOwned: true, MutexName, out var ownsMutex);
         if (!ownsMutex)
         {
@@ -347,6 +350,47 @@ internal static class Program
         }
         catch
         {
+        }
+    }
+
+    private static void TryGrantProgramDataAccess(UpdaterPaths paths)
+    {
+        try
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return;
+            }
+
+            var identity = WindowsIdentity.GetCurrent().Name;
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "icacls.exe",
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    RedirectStandardError = true,
+                    RedirectStandardOutput = true
+                }
+            };
+
+            process.StartInfo.ArgumentList.Add(paths.BaseDirectory);
+            process.StartInfo.ArgumentList.Add("/grant");
+            process.StartInfo.ArgumentList.Add($"{identity}:(OI)(CI)M");
+            process.StartInfo.ArgumentList.Add("/T");
+            process.StartInfo.ArgumentList.Add("/C");
+            process.Start();
+            if (!process.WaitForExit(30000))
+            {
+                process.Kill(entireProcessTree: true);
+            }
+
+            Log(paths, $"ProgramData ACL refreshed for {identity}. ExitCode={process.ExitCode}");
+        }
+        catch (Exception ex)
+        {
+            Log(paths, $"ProgramData ACL refresh failed: {ex.Message}");
         }
     }
 

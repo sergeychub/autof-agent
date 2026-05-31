@@ -42,9 +42,16 @@ function Stop-AgentIfRunning {
     }
 }
 
+function Grant-ProgramDataAccess {
+    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $grant = "${identity}:(OI)(CI)M"
+    & icacls.exe $programDataDir /grant $grant /T /C | Out-Null
+}
+
 New-Item -ItemType Directory -Force -Path $programFilesDir | Out-Null
 New-Item -ItemType Directory -Force -Path $programDataDir | Out-Null
 New-Item -ItemType Directory -Force -Path $startMenuDir | Out-Null
+Grant-ProgramDataAccess
 
 Stop-AgentIfRunning
 Get-ChildItem -LiteralPath $programFilesDir -Force | Remove-Item -Recurse -Force
@@ -86,6 +93,7 @@ exit `$process.ExitCode
 "@
 
 Set-Content -Path $runnerScriptPath -Value $runnerScript -Encoding UTF8
+Grant-ProgramDataAccess
 
 $taskAction = New-ScheduledTaskAction `
     -Execute "powershell.exe" `

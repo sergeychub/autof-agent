@@ -67,7 +67,7 @@ internal sealed class UpdateCheckService : IDisposable
                 catch (Exception ex)
                 {
                     _logger.Error("Update check failed.", ex);
-                    _stateStore.Write(UpdateStatuses.Failure, message: ex.Message);
+                    TryWriteState(UpdateStatuses.Failure, message: ex.Message);
                 }
 
                 await DelayIntervalAsync(cancellationToken);
@@ -99,7 +99,7 @@ internal sealed class UpdateCheckService : IDisposable
         if (string.IsNullOrWhiteSpace(_settings.ApiKey))
         {
             _logger.Error("Auto-update skipped because apiKey is empty.");
-            _stateStore.Write(UpdateStatuses.Skipped, message: "apiKey is empty.");
+            TryWriteState(UpdateStatuses.Skipped, message: "apiKey is empty.");
             return;
         }
 
@@ -137,8 +137,8 @@ internal sealed class UpdateCheckService : IDisposable
             JsonSerializer.Serialize(manifest, ManifestJsonOptions),
             cancellationToken);
 
-        _stateStore.Write(UpdateStatuses.Available, manifest.ReleaseId, manifest.Version, "Update manifest accepted.");
-        await ReportAsync(manifest, UpdateStatuses.Available, "Update manifest accepted.", cancellationToken);
+        TryWriteState(UpdateStatuses.Available, manifest.ReleaseId, manifest.Version, "Update manifest accepted.");
+        await TryReportAsync(manifest, UpdateStatuses.Available, "Update manifest accepted.", cancellationToken);
         await StartUpdaterTaskAsync(manifest, cancellationToken);
     }
 
@@ -205,6 +205,30 @@ internal sealed class UpdateCheckService : IDisposable
         if (!response.IsSuccessStatusCode)
         {
             _logger.Error($"Update report failed ({(int)response.StatusCode}).");
+        }
+    }
+
+    private void TryWriteState(string status, string? releaseId = null, string? version = null, string? message = null)
+    {
+        try
+        {
+            _stateStore.Write(status, releaseId, version, message);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Update state could not be written.", ex);
+        }
+    }
+
+    private async Task TryReportAsync(UpdateManifest manifest, string status, string message, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await ReportAsync(manifest, status, message, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Update report failed.", ex);
         }
     }
 
