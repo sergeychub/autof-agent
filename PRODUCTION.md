@@ -32,6 +32,7 @@ The installer preserves `%ProgramData%\Avtoforward\Agent\agentsettings.json`, re
 4. Bootstrap existing machines once with the updated installer. Later pushes to `main` publish signed update artifacts automatically.
 
 Smoke-test note: a push to `main` is enough to publish a new signed agent version; verify rollout by checking the installed executable `ProductVersion` and `%ProgramData%\Avtoforward\Agent\updates\state.json`.
+The elevated updater also refreshes its ProgramData runner script during updates, so fixes to the update runner are carried forward after the first successful update.
 
 ## MSI
 
