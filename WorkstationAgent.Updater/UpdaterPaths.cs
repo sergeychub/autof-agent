@@ -17,6 +17,7 @@ internal sealed class UpdaterPaths
         PendingManifestPath = Path.Combine(UpdatesDirectory, "pending-manifest.json");
         UpdateStatePath = Path.Combine(UpdatesDirectory, "state.json");
         SettingsPath = Path.Combine(BaseDirectory, "agentsettings.json");
+        RunnerScriptPath = Path.Combine(BaseDirectory, "run-updater.ps1");
         LogFilePath = Path.Combine(LogsDirectory, "updater.log");
     }
 
@@ -39,6 +40,8 @@ internal sealed class UpdaterPaths
     public string UpdateStatePath { get; }
 
     public string SettingsPath { get; }
+
+    public string RunnerScriptPath { get; }
 
     public string LogFilePath { get; }
 

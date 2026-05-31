@@ -22,6 +22,7 @@ internal static class Program
         Directory.CreateDirectory(paths.BaseDirectory);
         Directory.CreateDirectory(paths.LogsDirectory);
         TryGrantProgramDataAccess(paths);
+        TryRefreshRunnerScript(paths);
         using var mutex = new Mutex(initiallyOwned: true, MutexName, out var ownsMutex);
         if (!ownsMutex)
         {
@@ -52,6 +53,7 @@ internal static class Program
 
             var stagingPath = ExtractArchive(paths, manifest, archivePath);
             InstallRelease(paths, stagingPath);
+            TryRefreshRunnerScript(paths);
             TryStartAgent(paths);
 
             stateStore.Write(UpdateStatuses.Success, manifest.ReleaseId, manifest.Version, "Update installed.");
@@ -404,6 +406,48 @@ internal static class Program
         {
             Log(paths, $"ProgramData ACL refresh failed: {ex.Message}");
         }
+    }
+
+    private static void TryRefreshRunnerScript(UpdaterPaths paths)
+    {
+        try
+        {
+            var installDir = PowerShellSingleQuoted(paths.InstallDirectory);
+            var programDataDir = PowerShellSingleQuoted(paths.BaseDirectory);
+            var script = $$"""
+$ErrorActionPreference = "Stop"
+$installDir = '{{installDir}}'
+$programDataDir = '{{programDataDir}}'
+$runnerDir = Join-Path $programDataDir "updates\runner"
+
+if (Test-Path -LiteralPath $runnerDir) {
+    Remove-Item -LiteralPath $runnerDir -Recurse -Force
+}
+
+New-Item -ItemType Directory -Force -Path $runnerDir | Out-Null
+Copy-Item -Path (Join-Path $installDir "*") -Destination $runnerDir -Recurse -Force
+
+$updaterExe = Join-Path $runnerDir "WorkstationAgent.Updater.exe"
+if (-not (Test-Path -LiteralPath $updaterExe)) {
+    throw "Updater executable was not found: $updaterExe"
+}
+
+& $updaterExe --install-dir $installDir
+exit $LASTEXITCODE
+""";
+
+            File.WriteAllText(paths.RunnerScriptPath, script);
+            Log(paths, $"Runner script refreshed: {paths.RunnerScriptPath}");
+        }
+        catch (Exception ex)
+        {
+            Log(paths, $"Runner script refresh failed: {ex.Message}");
+        }
+    }
+
+    private static string PowerShellSingleQuoted(string value)
+    {
+        return value.Replace("'", "''");
     }
 
     private static void Log(UpdaterPaths paths, string message)
