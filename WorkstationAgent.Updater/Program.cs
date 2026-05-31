@@ -14,7 +14,6 @@ internal static class Program
     private const string AgentProcessName = "WorkstationAgent";
     private const string AgentExecutableName = "WorkstationAgent.exe";
     private const string MutexName = "Local\\AvtoforwardAgentUpdater";
-    private const string UpdaterTaskName = "AvtoforwardAgentUpdater";
 
     private static async Task<int> Main(string[] args)
     {
@@ -24,7 +23,6 @@ internal static class Program
         Directory.CreateDirectory(paths.LogsDirectory);
         TryGrantProgramDataAccess(paths);
         TryRefreshRunnerScript(paths);
-        TryRefreshScheduledTaskAction(paths);
         using var mutex = new Mutex(initiallyOwned: true, MutexName, out var ownsMutex);
         if (!ownsMutex)
         {
@@ -56,7 +54,6 @@ internal static class Program
             var stagingPath = ExtractArchive(paths, manifest, archivePath);
             InstallRelease(paths, stagingPath);
             TryRefreshRunnerScript(paths);
-            TryRefreshScheduledTaskAction(paths);
             TryStartAgent(paths);
 
             stateStore.Write(UpdateStatuses.Success, manifest.ReleaseId, manifest.Version, "Update installed.");
@@ -461,52 +458,6 @@ exit $LASTEXITCODE
         catch (Exception ex)
         {
             Log(paths, $"Runner script refresh failed: {ex.Message}");
-        }
-    }
-
-    private static void TryRefreshScheduledTaskAction(UpdaterPaths paths)
-    {
-        try
-        {
-            if (!OperatingSystem.IsWindows())
-            {
-                return;
-            }
-
-            var taskCommand =
-                $"powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File \"{paths.RunnerScriptPath}\"";
-            using var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "schtasks.exe",
-                    CreateNoWindow = true,
-                    UseShellExecute = false,
-                    RedirectStandardError = true,
-                    RedirectStandardOutput = true
-                }
-            };
-
-            process.StartInfo.ArgumentList.Add("/Change");
-            process.StartInfo.ArgumentList.Add("/TN");
-            process.StartInfo.ArgumentList.Add(UpdaterTaskName);
-            process.StartInfo.ArgumentList.Add("/TR");
-            process.StartInfo.ArgumentList.Add(taskCommand);
-
-            process.Start();
-            if (!process.WaitForExit(30000))
-            {
-                process.Kill(entireProcessTree: true);
-                process.WaitForExit(10000);
-            }
-
-            var output = process.StandardOutput.ReadToEnd();
-            var error = process.StandardError.ReadToEnd();
-            Log(paths, $"Updater task action refreshed. ExitCode={process.ExitCode}. Output={output.Trim()} Error={error.Trim()}");
-        }
-        catch (Exception ex)
-        {
-            Log(paths, $"Updater task action refresh failed: {ex.Message}");
         }
     }
 
