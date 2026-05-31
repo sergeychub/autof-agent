@@ -47,7 +47,9 @@ internal partial class SetupWizardFormCore : Form
         Paths = paths;
         IsFirstRun = isFirstRun;
 
-        Text = isFirstRun ? $"{AvtoforwardBranding.AppName} Setup" : $"{AvtoforwardBranding.AppName} Settings";
+        Text = isFirstRun
+            ? $"{AvtoforwardBranding.AppName} Setup - v{AgentVersionDisplay}"
+            : $"{AvtoforwardBranding.AppName} Settings - v{AgentVersionDisplay}";
         StartPosition = FormStartPosition.CenterScreen;
         AutoScaleMode = AutoScaleMode.Dpi;
         MinimumSize = new Size(1020, 760);

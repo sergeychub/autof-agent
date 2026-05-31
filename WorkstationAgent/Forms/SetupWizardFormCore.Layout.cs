@@ -1,5 +1,6 @@
 using System.Windows.Forms;
 using WorkstationAgent.Branding;
+using WorkstationAgent.Infrastructure;
 using WorkstationAgent.Printing;
 
 namespace WorkstationAgent.Forms;
@@ -84,7 +85,7 @@ internal partial class SetupWizardFormCore
         var textPanel = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            RowCount = 3,
+            RowCount = 4,
             AutoSize = true
         };
         textPanel.Controls.Add(new Label
@@ -101,6 +102,13 @@ internal partial class SetupWizardFormCore
         });
         textPanel.Controls.Add(new Label
         {
+            Text = $"Version: v{AgentVersionDisplay}",
+            AutoSize = true,
+            MaximumSize = new Size(760, 0),
+            ForeColor = Color.FromArgb(16, 70, 133)
+        });
+        textPanel.Controls.Add(new Label
+        {
             Text = $"Config path: {SettingsStore.SettingsPath}",
             AutoSize = true,
             MaximumSize = new Size(760, 0),
@@ -110,6 +118,25 @@ internal partial class SetupWizardFormCore
         panel.Controls.Add(logo, 0, 0);
         panel.Controls.Add(textPanel, 1, 0);
         return panel;
+    }
+
+    private static string AgentVersionDisplay => FormatAgentVersion(AgentVersionProvider.CurrentVersion);
+
+    private static string FormatAgentVersion(string version)
+    {
+        var trimmed = (version ?? string.Empty).Trim();
+        if (trimmed.Length == 0)
+        {
+            return "0.0.0";
+        }
+
+        var parts = trimmed.Split('+', 2);
+        if (parts.Length == 1)
+        {
+            return parts[0];
+        }
+
+        return $"{parts[0]}+{parts[1].Split('.', 2)[0]}";
     }
 
     private Control BuildConnectionSection()
