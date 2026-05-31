@@ -88,8 +88,8 @@ if (-not (Test-Path -LiteralPath `$updaterExe)) {
     throw "Updater executable was not found: `$updaterExe"
 }
 
-`$process = Start-Process -FilePath `$updaterExe -ArgumentList @("--install-dir", "`$installDir") -Wait -PassThru -WindowStyle Hidden
-exit `$process.ExitCode
+& `$updaterExe --install-dir `$installDir
+exit `$LASTEXITCODE
 "@
 
 Set-Content -Path $runnerScriptPath -Value $runnerScript -Encoding UTF8

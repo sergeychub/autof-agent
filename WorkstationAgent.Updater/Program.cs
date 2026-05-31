@@ -18,6 +18,7 @@ internal static class Program
     private static async Task<int> Main(string[] args)
     {
         var paths = UpdaterPaths.Create(args);
+        ValidateInstallDirectory(paths);
         Directory.CreateDirectory(paths.BaseDirectory);
         Directory.CreateDirectory(paths.LogsDirectory);
         TryGrantProgramDataAccess(paths);
@@ -80,6 +81,17 @@ internal static class Program
         {
             PropertyNameCaseInsensitive = true
         }) ?? throw new InvalidOperationException("Pending update manifest is empty.");
+    }
+
+    private static void ValidateInstallDirectory(UpdaterPaths paths)
+    {
+        var installDirectory = Path.GetFullPath(paths.InstallDirectory)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var expectedSuffix = Path.Combine("Avtoforward", "Agent");
+        if (!installDirectory.EndsWith(expectedSuffix, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Install directory is not supported: {paths.InstallDirectory}");
+        }
     }
 
     private static async Task<string> DownloadArchiveAsync(
