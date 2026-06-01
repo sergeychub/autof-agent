@@ -38,7 +38,32 @@ internal sealed class AgentSettingsStore
             PropertyNameCaseInsensitive = true
         });
 
-        return settings ?? AgentSettings.CreateDefault();
+        settings ??= AgentSettings.CreateDefault();
+        settings.ReceiptPrinter ??= new ReceiptPrinterSettings();
+        settings.LabelPrinter ??= new LabelPrinterSettings();
+        settings.PosTerminal ??= new PosTerminalSettings();
+
+        if (string.IsNullOrWhiteSpace(settings.PosTerminal.Host))
+        {
+            settings.PosTerminal.Host = "192.168.0.103";
+        }
+
+        if (settings.PosTerminal.Port <= 0)
+        {
+            settings.PosTerminal.Port = 2000;
+        }
+
+        if (string.IsNullOrWhiteSpace(settings.PosTerminal.MerchantId))
+        {
+            settings.PosTerminal.MerchantId = "1";
+        }
+
+        if (settings.PosTerminal.TimeoutSeconds <= 0)
+        {
+            settings.PosTerminal.TimeoutSeconds = 180;
+        }
+
+        return settings;
     }
 
     public void Save(AgentSettings settings)

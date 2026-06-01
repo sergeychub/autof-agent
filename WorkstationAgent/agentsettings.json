@@ -38,6 +38,13 @@
     "speed": 2,
     "density": 14
   },
+  "posTerminal": {
+    "enabled": false,
+    "host": "192.168.0.103",
+    "port": 2000,
+    "merchantId": "1",
+    "timeoutSeconds": 180
+  },
   "reconnectDelaySeconds": 5,
   "pingIntervalSeconds": 30,
   "logFilePath": "",

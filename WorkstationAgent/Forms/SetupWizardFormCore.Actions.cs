@@ -41,6 +41,16 @@ internal partial class SetupWizardFormCore
         TsplDirectionComboBox.SelectedIndex = Math.Clamp(InitialSettings.LabelPrinter.TsplDirection, 0, 1);
         TsplSpeedBox.Value = Math.Clamp(InitialSettings.LabelPrinter.TsplSpeed, 1, 5);
         TsplDensityBox.Value = Math.Clamp(InitialSettings.LabelPrinter.TsplDensity, 1, 15);
+
+        PosTerminalEnabledCheckBox.Checked = InitialSettings.PosTerminal.Enabled;
+        PosTerminalHostTextBox.Text = string.IsNullOrWhiteSpace(InitialSettings.PosTerminal.Host)
+            ? "192.168.0.103"
+            : InitialSettings.PosTerminal.Host;
+        PosTerminalPortBox.Value = Math.Clamp(InitialSettings.PosTerminal.Port, 1, 65535);
+        PosTerminalMerchantIdTextBox.Text = string.IsNullOrWhiteSpace(InitialSettings.PosTerminal.MerchantId)
+            ? "1"
+            : InitialSettings.PosTerminal.MerchantId;
+        PosTerminalTimeoutBox.Value = Math.Clamp(InitialSettings.PosTerminal.TimeoutSeconds, 10, 600);
     }
 
     private void LoadPrinters()
@@ -160,9 +170,25 @@ internal partial class SetupWizardFormCore
                 TsplSpeed = (int)TsplSpeedBox.Value,
                 TsplDensity = (int)TsplDensityBox.Value
             },
+            PosTerminal = new PosTerminalSettings
+            {
+                Enabled = PosTerminalEnabledCheckBox.Checked,
+                Host = string.IsNullOrWhiteSpace(PosTerminalHostTextBox.Text)
+                    ? "192.168.0.103"
+                    : PosTerminalHostTextBox.Text.Trim(),
+                Port = (int)PosTerminalPortBox.Value,
+                MerchantId = string.IsNullOrWhiteSpace(PosTerminalMerchantIdTextBox.Text)
+                    ? "1"
+                    : PosTerminalMerchantIdTextBox.Text.Trim(),
+                TimeoutSeconds = (int)PosTerminalTimeoutBox.Value
+            },
             ReconnectDelaySeconds = InitialSettings.ReconnectDelaySeconds,
             PingIntervalSeconds = InitialSettings.PingIntervalSeconds,
-            LogFilePath = Paths.LogFilePath
+            LogFilePath = Paths.LogFilePath,
+            AutoUpdateEnabled = InitialSettings.AutoUpdateEnabled,
+            UpdateChannel = InitialSettings.UpdateChannel,
+            UpdateCheckIntervalMinutes = InitialSettings.UpdateCheckIntervalMinutes,
+            UpdateJitterMinutes = InitialSettings.UpdateJitterMinutes
         };
     }
 
@@ -194,6 +220,41 @@ internal partial class SetupWizardFormCore
             service => service.PrintTsplTestLabel(Guid.NewGuid().ToString("N")),
             result => result.Success,
             result => result.Success ? $"TSPL label sent to: {result.PrinterName}" : $"TSPL test failed: {result.Error}");
+    }
+
+    private async Task TestPosTerminalConnectionAsync()
+    {
+        try
+        {
+            ToggleEnabled(false);
+            StatusLabel.Text = "Testing POS terminal connection...";
+
+            var settings = BuildSettings();
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var service = new PosTerminalService(settings, new FileLogger(Paths.LogFilePath));
+            var result = await service.TestConnectionAsync(cts.Token);
+            var success = string.Equals(result.Status, "approved", StringComparison.OrdinalIgnoreCase);
+            var message = success
+                ? $"POS terminal connection OK: {settings.PosTerminal.Host}:{settings.PosTerminal.Port}"
+                : $"POS terminal test failed: {result.Message ?? result.ResponseCode ?? result.Status}";
+
+            StatusLabel.Text = message;
+            MessageBox.Show(
+                this,
+                message,
+                AvtoforwardBranding.AppName,
+                MessageBoxButtons.OK,
+                success ? MessageBoxIcon.Information : MessageBoxIcon.Error);
+        }
+        catch (Exception ex)
+        {
+            StatusLabel.Text = ex.Message;
+            MessageBox.Show(this, ex.Message, AvtoforwardBranding.AppName, MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            ToggleEnabled(true);
+        }
     }
 
     private void TryRunPrinterAction<T>(

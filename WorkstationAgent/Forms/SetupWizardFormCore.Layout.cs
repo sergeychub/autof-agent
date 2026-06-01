@@ -18,6 +18,7 @@ internal partial class SetupWizardFormCore
         tabs.TabPages.Add(BuildGeneralTabPage());
         tabs.TabPages.Add(BuildSettingsTabPage("Receipt Printer", BuildReceiptPrinterSection()));
         tabs.TabPages.Add(BuildSettingsTabPage("Label Printer", BuildLabelPrinterSection()));
+        tabs.TabPages.Add(BuildSettingsTabPage("POS Terminal", BuildPosTerminalSection()));
         return tabs;
     }
 
@@ -291,6 +292,35 @@ internal partial class SetupWizardFormCore
         var testLabelButton = new Button { Text = "Test TSPL Label Print", AutoSize = true };
         testLabelButton.Click += (_, _) => TestTsplLabelPrint(printerComboBox.Text);
         layout.Controls.Add(testLabelButton, 1, 13);
+
+        group.Controls.Add(layout);
+        return group;
+    }
+
+    private Control BuildPosTerminalSection()
+    {
+        var group = new GroupBox
+        {
+            Text = "PrivatBank POS Terminal",
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            Margin = new Padding(0, 0, 0, 16)
+        };
+
+        var layout = CreateFormTable();
+        layout.Controls.Add(new CheckBox { Name = "PosTerminalEnabledCheckBox", Text = "Enable POS terminal integration", AutoSize = true }, 1, 0);
+        layout.Controls.Add(new Label { Text = "Host", AutoSize = true }, 0, 1);
+        layout.Controls.Add(new TextBox { Name = "PosTerminalHostTextBox", Width = 220 }, 1, 1);
+        layout.Controls.Add(new Label { Text = "Port", AutoSize = true }, 0, 2);
+        layout.Controls.Add(new NumericUpDown { Name = "PosTerminalPortBox", Minimum = 1, Maximum = 65535, Width = 100 }, 1, 2);
+        layout.Controls.Add(new Label { Text = "Merchant ID", AutoSize = true }, 0, 3);
+        layout.Controls.Add(new TextBox { Name = "PosTerminalMerchantIdTextBox", Width = 120 }, 1, 3);
+        layout.Controls.Add(new Label { Text = "Timeout (seconds)", AutoSize = true }, 0, 4);
+        layout.Controls.Add(new NumericUpDown { Name = "PosTerminalTimeoutBox", Minimum = 10, Maximum = 600, Width = 100 }, 1, 4);
+
+        var testButton = new Button { Text = "Test Connection", AutoSize = true };
+        testButton.Click += async (_, _) => await TestPosTerminalConnectionAsync();
+        layout.Controls.Add(testButton, 1, 5);
 
         group.Controls.Add(layout);
         return group;

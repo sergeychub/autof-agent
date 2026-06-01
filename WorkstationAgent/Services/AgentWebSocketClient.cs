@@ -12,6 +12,7 @@ internal sealed class AgentWebSocketClient : IAsyncDisposable
     private readonly AgentSettings _settings;
     private readonly FileLogger _logger;
     private readonly ThermalPrinterService _thermalPrinterService;
+    private readonly PosTerminalService _posTerminalService;
     private readonly Func<string> _lastUpdateStatusProvider;
     private readonly Func<string> _agentVersionProvider;
     private SocketIOClient.SocketIO? _socket;
@@ -21,12 +22,14 @@ internal sealed class AgentWebSocketClient : IAsyncDisposable
         AgentSettings settings,
         FileLogger logger,
         ThermalPrinterService thermalPrinterService,
+        PosTerminalService posTerminalService,
         Func<string> lastUpdateStatusProvider,
         Func<string> agentVersionProvider)
     {
         _settings = settings;
         _logger = logger;
         _thermalPrinterService = thermalPrinterService;
+        _posTerminalService = posTerminalService;
         _lastUpdateStatusProvider = lastUpdateStatusProvider;
         _agentVersionProvider = agentVersionProvider;
     }
@@ -146,6 +149,11 @@ internal sealed class AgentWebSocketClient : IAsyncDisposable
         socket.On("printer:job", response =>
         {
             _ = HandlePrintJobAsync(socket, response);
+        });
+
+        socket.On("pos:terminal:purchase", response =>
+        {
+            _ = HandlePosTerminalPurchaseAsync(socket, response);
         });
 
         return socket;
@@ -277,6 +285,48 @@ internal sealed class AgentWebSocketClient : IAsyncDisposable
                 PrinterName = _thermalPrinterService.GetPrinterNameForRequest(request),
                 Error = ex.Message,
                 DocumentName = request?.DocumentName
+            });
+        }
+    }
+
+    private async Task HandlePosTerminalPurchaseAsync(SocketIOClient.SocketIO socket, SocketIOResponse response)
+    {
+        PosTerminalPurchaseRequest? request = null;
+
+        try
+        {
+            request = response.GetValue<PosTerminalPurchaseRequest>();
+            var requestId = string.IsNullOrWhiteSpace(request.RequestId)
+                ? Guid.NewGuid().ToString("N")
+                : request.RequestId;
+
+            request = new PosTerminalPurchaseRequest
+            {
+                RequestId = requestId,
+                Amount = request.Amount,
+                Currency = request.Currency
+            };
+
+            _logger.Info($"Received pos:terminal:purchase command. RequestId={requestId}, Amount={request.Amount}");
+            var result = await _posTerminalService.PurchaseAsync(request, CancellationToken.None);
+            await socket.EmitAsync("pos:terminal:result", result);
+            _logger.Info($"pos:terminal:result sent. RequestId={requestId}, Status={result.Status}, ResponseCode={result.ResponseCode ?? "n/a"}");
+        }
+        catch (Exception ex)
+        {
+            var fallbackRequestId = request?.RequestId;
+            if (string.IsNullOrWhiteSpace(fallbackRequestId))
+            {
+                fallbackRequestId = Guid.NewGuid().ToString("N");
+            }
+
+            _logger.Error("Failed to process pos:terminal:purchase command.", ex);
+
+            await socket.EmitAsync("pos:terminal:result", new PosTerminalPurchaseResult
+            {
+                RequestId = fallbackRequestId,
+                Status = "error",
+                Message = ex.Message
             });
         }
     }

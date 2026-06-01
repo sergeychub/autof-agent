@@ -17,6 +17,7 @@ internal sealed class AgentApplicationContext : ApplicationContext
     private readonly UpdateCheckService _updateCheckService;
     private readonly UpdateStateStore _updateStateStore;
     private readonly ThermalPrinterService _thermalPrinterService;
+    private readonly PosTerminalService _posTerminalService;
     private readonly CancellationTokenSource _shutdown = new();
     private readonly SynchronizationContext _uiContext;
     private readonly AgentSettingsStore _settingsStore;
@@ -50,10 +51,12 @@ internal sealed class AgentApplicationContext : ApplicationContext
             tsplPayloadBuilder,
             new Printing.TsplTestLabelBuilder(tsplPayloadBuilder),
             transportResolver);
+        _posTerminalService = new PosTerminalService(settings, _logger);
         _webSocketClient = new AgentWebSocketClient(
             settings,
             _logger,
             _thermalPrinterService,
+            _posTerminalService,
             () => _updateStateStore.ReadStatus(),
             () => AgentVersionProvider.CurrentVersion);
         _updateCheckService = new UpdateCheckService(settings, paths, _logger, _updateStateStore);
@@ -109,6 +112,7 @@ internal sealed class AgentApplicationContext : ApplicationContext
         menu.Items.Add("Print test receipt", null, (_, _) => PrintTestReceipt());
         menu.Items.Add("Print test logo", null, (_, _) => PrintTestLogo());
         menu.Items.Add("Print test label", null, (_, _) => PrintTestLabel());
+        menu.Items.Add("Test POS terminal", null, async (_, _) => await TestPosTerminal());
         menu.Items.Add("Open logs", null, (_, _) => OpenLogsFolder());
         menu.Items.Add("Exit", null, (_, _) => ExitThread());
         return menu;
@@ -131,7 +135,7 @@ internal sealed class AgentApplicationContext : ApplicationContext
                 _notifyIcon.ShowBalloonTip(
                     2000,
                     AvtoforwardBranding.AppName,
-                    "Print command received from server.",
+                    "Command received from server.",
                     ToolTipIcon.Info);
             }, null);
         }
@@ -177,6 +181,30 @@ internal sealed class AgentApplicationContext : ApplicationContext
             AvtoforwardBranding.AppName,
             text,
             result.Success ? ToolTipIcon.Info : ToolTipIcon.Error);
+    }
+
+    private async Task TestPosTerminal()
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var result = await _posTerminalService.TestConnectionAsync(cts.Token);
+            var success = string.Equals(result.Status, "approved", StringComparison.OrdinalIgnoreCase);
+            _notifyIcon.ShowBalloonTip(
+                3000,
+                AvtoforwardBranding.AppName,
+                success ? "POS terminal connection OK." : $"POS terminal test failed: {result.Message ?? result.ResponseCode}",
+                success ? ToolTipIcon.Info : ToolTipIcon.Error);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("POS terminal test failed.", ex);
+            _notifyIcon.ShowBalloonTip(
+                3000,
+                AvtoforwardBranding.AppName,
+                $"POS terminal test failed: {ex.Message}",
+                ToolTipIcon.Error);
+        }
     }
 
     private void OpenSettingsWindow()

@@ -28,6 +28,9 @@ internal sealed class AgentSettings
     [JsonPropertyName("labelPrinter")]
     public LabelPrinterSettings LabelPrinter { get; set; } = new();
 
+    [JsonPropertyName("posTerminal")]
+    public PosTerminalSettings PosTerminal { get; set; } = new();
+
     [JsonPropertyName("reconnectDelaySeconds")]
     public int ReconnectDelaySeconds { get; set; } = 5;
 
@@ -178,8 +181,9 @@ internal sealed class AgentSettings
             SocketIoUrl = SocketIoUrl,
             ApiKey = ApiKey,
             StartWithWindows = StartWithWindows,
-            ReceiptPrinter = ReceiptPrinter.Clone(),
-            LabelPrinter = LabelPrinter.Clone(),
+            ReceiptPrinter = ReceiptPrinter?.Clone() ?? new ReceiptPrinterSettings(),
+            LabelPrinter = LabelPrinter?.Clone() ?? new LabelPrinterSettings(),
+            PosTerminal = PosTerminal?.Clone() ?? new PosTerminalSettings(),
             ReconnectDelaySeconds = ReconnectDelaySeconds,
             PingIntervalSeconds = PingIntervalSeconds,
             LogFilePath = LogFilePath,

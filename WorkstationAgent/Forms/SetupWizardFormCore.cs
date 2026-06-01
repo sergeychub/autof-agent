@@ -28,6 +28,11 @@ internal partial class SetupWizardFormCore : Form
     protected readonly CheckBox LabelPrinterEnabledCheckBox;
     protected readonly TextBox LabelCharacterEncodingTextBox;
     protected readonly TextBox LabelCodePageTextBox;
+    protected readonly CheckBox PosTerminalEnabledCheckBox;
+    protected readonly TextBox PosTerminalHostTextBox;
+    protected readonly NumericUpDown PosTerminalPortBox;
+    protected readonly TextBox PosTerminalMerchantIdTextBox;
+    protected readonly NumericUpDown PosTerminalTimeoutBox;
     protected readonly TextBox ApiBaseUrlTextBox;
     protected readonly TextBox RegistrationTokenTextBox;
     protected readonly TextBox AgentNameTextBox;
@@ -88,6 +93,11 @@ internal partial class SetupWizardFormCore : Form
         LabelPrinterEnabledCheckBox = FindControl<CheckBox>("LabelPrinterEnabledCheckBox");
         LabelCharacterEncodingTextBox = FindControl<TextBox>("LabelCharacterEncodingTextBox");
         LabelCodePageTextBox = FindControl<TextBox>("LabelCodePageTextBox");
+        PosTerminalEnabledCheckBox = FindControl<CheckBox>("PosTerminalEnabledCheckBox");
+        PosTerminalHostTextBox = FindControl<TextBox>("PosTerminalHostTextBox");
+        PosTerminalPortBox = FindControl<NumericUpDown>("PosTerminalPortBox");
+        PosTerminalMerchantIdTextBox = FindControl<TextBox>("PosTerminalMerchantIdTextBox");
+        PosTerminalTimeoutBox = FindControl<NumericUpDown>("PosTerminalTimeoutBox");
         TsplLabelWidthBox = FindControl<NumericUpDown>("TsplLabelWidthBox");
         TsplLabelHeightBox = FindControl<NumericUpDown>("TsplLabelHeightBox");
         TsplLabelGapBox = FindControl<NumericUpDown>("TsplLabelGapBox");
