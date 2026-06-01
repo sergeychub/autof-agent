@@ -13,6 +13,8 @@ internal sealed class PrivatBankPosTerminalClient
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly PosTerminalSettings _settings;
     private readonly FileLogger _logger;
+    private readonly SemaphoreSlim _writeLock = new(1, 1);
+    private NetworkStream? _activeStream;
 
     public PrivatBankPosTerminalClient(PosTerminalSettings settings, FileLogger logger)
     {
@@ -70,9 +72,42 @@ internal sealed class PrivatBankPosTerminalClient
         await client.ConnectAsync(_settings.Host, _settings.Port, timeoutCts.Token);
         await using var stream = client.GetStream();
 
-        await SendHandshakeAsync(stream, timeoutCts.Token);
-        await Task.Delay(TimeSpan.FromSeconds(1), timeoutCts.Token);
-        return await SendAndReadAsync(stream, request, leadingNull: false, timeoutCts.Token);
+        _activeStream = stream;
+        try
+        {
+            await SendHandshakeAsync(stream, timeoutCts.Token);
+            await Task.Delay(TimeSpan.FromSeconds(1), timeoutCts.Token);
+            return await SendAndReadAsync(stream, request, leadingNull: false, timeoutCts.Token);
+        }
+        finally
+        {
+            if (ReferenceEquals(_activeStream, stream))
+            {
+                _activeStream = null;
+            }
+        }
+    }
+
+    public async Task InterruptAsync(CancellationToken cancellationToken)
+    {
+        var request = new
+        {
+            method = "ServiceMessage",
+            step = 0,
+            @params = new
+            {
+                msgType = "interrupt"
+            }
+        };
+
+        var stream = _activeStream;
+        if (stream is not null)
+        {
+            await WriteDatagramAsync(stream, request, leadingNull: false, cancellationToken);
+            return;
+        }
+
+        await SendAsync(request, cancellationToken);
     }
 
     private async Task<JsonElement> SendHandshakeAsync(CancellationToken cancellationToken)
@@ -102,13 +137,31 @@ internal sealed class PrivatBankPosTerminalClient
         bool leadingNull,
         CancellationToken cancellationToken)
     {
+        await WriteDatagramAsync(stream, request, leadingNull, cancellationToken);
+
+        return await ReadDatagramAsync(stream, cancellationToken);
+    }
+
+    private async Task WriteDatagramAsync(
+        NetworkStream stream,
+        object request,
+        bool leadingNull,
+        CancellationToken cancellationToken)
+    {
         var payload = JsonSerializer.Serialize(request, JsonOptions);
         _logger.Info($"POS terminal send: {payload}");
         var bytes = BuildDatagram(payload, leadingNull);
-        await stream.WriteAsync(bytes, cancellationToken);
-        await stream.FlushAsync(cancellationToken);
 
-        return await ReadDatagramAsync(stream, cancellationToken);
+        await _writeLock.WaitAsync(cancellationToken);
+        try
+        {
+            await stream.WriteAsync(bytes, cancellationToken);
+            await stream.FlushAsync(cancellationToken);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
     }
 
     private async Task<JsonElement> ReadDatagramAsync(NetworkStream stream, CancellationToken cancellationToken)

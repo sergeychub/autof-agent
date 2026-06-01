@@ -156,6 +156,11 @@ internal sealed class AgentWebSocketClient : IAsyncDisposable
             _ = HandlePosTerminalPurchaseAsync(socket, response);
         });
 
+        socket.On("pos:terminal:cancel", response =>
+        {
+            _ = HandlePosTerminalCancelAsync(socket, response);
+        });
+
         return socket;
     }
 
@@ -321,6 +326,41 @@ internal sealed class AgentWebSocketClient : IAsyncDisposable
             }
 
             _logger.Error("Failed to process pos:terminal:purchase command.", ex);
+
+            await socket.EmitAsync("pos:terminal:result", new PosTerminalPurchaseResult
+            {
+                RequestId = fallbackRequestId,
+                Status = "error",
+                Message = ex.Message
+            });
+        }
+    }
+
+    private async Task HandlePosTerminalCancelAsync(SocketIOClient.SocketIO socket, SocketIOResponse response)
+    {
+        PosTerminalCancelRequest? request = null;
+
+        try
+        {
+            request = response.GetValue<PosTerminalCancelRequest>();
+            var requestId = string.IsNullOrWhiteSpace(request.RequestId)
+                ? Guid.NewGuid().ToString("N")
+                : request.RequestId;
+
+            _logger.Info($"Received pos:terminal:cancel command. RequestId={requestId}");
+            var result = await _posTerminalService.CancelAsync(requestId, CancellationToken.None);
+            await socket.EmitAsync("pos:terminal:result", result);
+            _logger.Info($"pos:terminal:result sent after cancel. RequestId={requestId}, Status={result.Status}");
+        }
+        catch (Exception ex)
+        {
+            var fallbackRequestId = request?.RequestId;
+            if (string.IsNullOrWhiteSpace(fallbackRequestId))
+            {
+                fallbackRequestId = Guid.NewGuid().ToString("N");
+            }
+
+            _logger.Error("Failed to process pos:terminal:cancel command.", ex);
 
             await socket.EmitAsync("pos:terminal:result", new PosTerminalPurchaseResult
             {
