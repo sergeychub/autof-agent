@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using Krypton.Toolkit;
 using System.Windows.Forms;
 using WorkstationAgent.Branding;
 using WorkstationAgent.Configuration;
@@ -8,45 +9,48 @@ using WorkstationAgent.Printing;
 
 namespace WorkstationAgent.Forms;
 
-internal partial class SetupWizardFormCore : Form
+internal partial class SetupWizardFormCore : KryptonForm
 {
     protected readonly AgentSettingsStore SettingsStore;
     protected readonly AgentPaths Paths;
     protected readonly AgentSettings InitialSettings;
     protected readonly bool IsFirstRun;
+    private readonly List<Control> _toggleRootControls = [];
 
-    protected readonly ComboBox ReceiptPrinterComboBox;
-    protected readonly ComboBox ReceiptTransportModeComboBox;
-    protected readonly TextBox ReceiptUsbVendorIdTextBox;
-    protected readonly TextBox ReceiptUsbProductIdTextBox;
-    protected readonly ComboBox ReceiptImageCommandModeComboBox;
-    protected readonly CheckBox ReceiptPrinterEnabledCheckBox;
-    protected readonly ComboBox LabelPrinterComboBox;
-    protected readonly ComboBox LabelTransportModeComboBox;
-    protected readonly TextBox LabelUsbVendorIdTextBox;
-    protected readonly TextBox LabelUsbProductIdTextBox;
-    protected readonly CheckBox LabelPrinterEnabledCheckBox;
-    protected readonly TextBox LabelCharacterEncodingTextBox;
-    protected readonly TextBox LabelCodePageTextBox;
-    protected readonly CheckBox PosTerminalEnabledCheckBox;
-    protected readonly TextBox PosTerminalHostTextBox;
-    protected readonly NumericUpDown PosTerminalPortBox;
-    protected readonly TextBox PosTerminalMerchantIdTextBox;
-    protected readonly NumericUpDown PosTerminalTimeoutBox;
-    protected readonly TextBox ApiBaseUrlTextBox;
-    protected readonly TextBox RegistrationTokenTextBox;
-    protected readonly TextBox AgentNameTextBox;
-    protected readonly CheckBox StartWithWindowsCheckBox;
-    protected readonly Label StatusLabel;
-    protected readonly NumericUpDown TsplLabelWidthBox;
-    protected readonly NumericUpDown TsplLabelHeightBox;
-    protected readonly NumericUpDown TsplLabelGapBox;
-    protected readonly ComboBox TsplDirectionComboBox;
-    protected readonly NumericUpDown TsplSpeedBox;
-    protected readonly NumericUpDown TsplDensityBox;
+    protected readonly KryptonComboBox ReceiptPrinterComboBox;
+    protected readonly KryptonComboBox ReceiptTransportModeComboBox;
+    protected readonly KryptonTextBox ReceiptUsbVendorIdTextBox;
+    protected readonly KryptonTextBox ReceiptUsbProductIdTextBox;
+    protected readonly KryptonComboBox ReceiptImageCommandModeComboBox;
+    protected readonly KryptonCheckBox ReceiptPrinterEnabledCheckBox;
+    protected readonly KryptonComboBox LabelPrinterComboBox;
+    protected readonly KryptonComboBox LabelTransportModeComboBox;
+    protected readonly KryptonTextBox LabelUsbVendorIdTextBox;
+    protected readonly KryptonTextBox LabelUsbProductIdTextBox;
+    protected readonly KryptonCheckBox LabelPrinterEnabledCheckBox;
+    protected readonly KryptonTextBox LabelCharacterEncodingTextBox;
+    protected readonly KryptonTextBox LabelCodePageTextBox;
+    protected readonly KryptonCheckBox PosTerminalEnabledCheckBox;
+    protected readonly KryptonTextBox PosTerminalHostTextBox;
+    protected readonly KryptonNumericUpDown PosTerminalPortBox;
+    protected readonly KryptonTextBox PosTerminalMerchantIdTextBox;
+    protected readonly KryptonNumericUpDown PosTerminalTimeoutBox;
+    protected readonly KryptonTextBox ApiBaseUrlTextBox;
+    protected readonly KryptonTextBox RegistrationTokenTextBox;
+    protected readonly KryptonTextBox AgentNameTextBox;
+    protected readonly KryptonCheckBox StartWithWindowsCheckBox;
+    protected readonly KryptonLabel StatusLabel;
+    protected readonly KryptonNumericUpDown TsplLabelWidthBox;
+    protected readonly KryptonNumericUpDown TsplLabelHeightBox;
+    protected readonly KryptonNumericUpDown TsplLabelGapBox;
+    protected readonly KryptonComboBox TsplDirectionComboBox;
+    protected readonly KryptonNumericUpDown TsplSpeedBox;
+    protected readonly KryptonNumericUpDown TsplDensityBox;
 
     protected SetupWizardFormCore(AgentSettings initialSettings, AgentSettingsStore settingsStore, AgentPaths paths, bool isFirstRun)
     {
+        SetInheritedControlOverride();
+
         InitialSettings = initialSettings.Clone();
         SettingsStore = settingsStore;
         Paths = paths;
@@ -62,6 +66,7 @@ internal partial class SetupWizardFormCore : Form
         Icon = AvtoforwardBranding.CreateTrayIcon();
 
         var footer = BuildFooter();
+        _toggleRootControls.Add(footer);
         Controls.Add(footer);
 
         var content = new TableLayoutPanel
@@ -76,39 +81,40 @@ internal partial class SetupWizardFormCore : Form
         content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         content.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
+        _toggleRootControls.Add(content);
         Controls.Add(content);
         content.Controls.Add(BuildHeader(), 0, 0);
-        content.Controls.Add(BuildSettingsTabs(), 0, 1);
+        content.Controls.Add(BuildSettingsShell(), 0, 1);
 
-        ReceiptPrinterComboBox = FindControl<ComboBox>("ReceiptPrinterComboBox");
-        ReceiptTransportModeComboBox = FindControl<ComboBox>("ReceiptTransportModeComboBox");
-        ReceiptUsbVendorIdTextBox = FindControl<TextBox>("ReceiptUsbVendorIdTextBox");
-        ReceiptUsbProductIdTextBox = FindControl<TextBox>("ReceiptUsbProductIdTextBox");
-        ReceiptImageCommandModeComboBox = FindControl<ComboBox>("ReceiptImageCommandModeComboBox");
-        ReceiptPrinterEnabledCheckBox = FindControl<CheckBox>("ReceiptPrinterEnabledCheckBox");
-        LabelPrinterComboBox = FindControl<ComboBox>("LabelPrinterComboBox");
-        LabelTransportModeComboBox = FindControl<ComboBox>("LabelTransportModeComboBox");
-        LabelUsbVendorIdTextBox = FindControl<TextBox>("LabelUsbVendorIdTextBox");
-        LabelUsbProductIdTextBox = FindControl<TextBox>("LabelUsbProductIdTextBox");
-        LabelPrinterEnabledCheckBox = FindControl<CheckBox>("LabelPrinterEnabledCheckBox");
-        LabelCharacterEncodingTextBox = FindControl<TextBox>("LabelCharacterEncodingTextBox");
-        LabelCodePageTextBox = FindControl<TextBox>("LabelCodePageTextBox");
-        PosTerminalEnabledCheckBox = FindControl<CheckBox>("PosTerminalEnabledCheckBox");
-        PosTerminalHostTextBox = FindControl<TextBox>("PosTerminalHostTextBox");
-        PosTerminalPortBox = FindControl<NumericUpDown>("PosTerminalPortBox");
-        PosTerminalMerchantIdTextBox = FindControl<TextBox>("PosTerminalMerchantIdTextBox");
-        PosTerminalTimeoutBox = FindControl<NumericUpDown>("PosTerminalTimeoutBox");
-        TsplLabelWidthBox = FindControl<NumericUpDown>("TsplLabelWidthBox");
-        TsplLabelHeightBox = FindControl<NumericUpDown>("TsplLabelHeightBox");
-        TsplLabelGapBox = FindControl<NumericUpDown>("TsplLabelGapBox");
-        TsplDirectionComboBox = FindControl<ComboBox>("TsplDirectionComboBox");
-        TsplSpeedBox = FindControl<NumericUpDown>("TsplSpeedBox");
-        TsplDensityBox = FindControl<NumericUpDown>("TsplDensityBox");
-        ApiBaseUrlTextBox = FindControl<TextBox>("ApiBaseUrlTextBox");
-        RegistrationTokenTextBox = FindControl<TextBox>("RegistrationTokenTextBox");
-        AgentNameTextBox = FindControl<TextBox>("AgentNameTextBox");
-        StartWithWindowsCheckBox = FindControl<CheckBox>("StartWithWindowsCheckBox");
-        StatusLabel = FindControl<Label>("StatusLabel");
+        ReceiptPrinterComboBox = FindControl<KryptonComboBox>("ReceiptPrinterComboBox");
+        ReceiptTransportModeComboBox = FindControl<KryptonComboBox>("ReceiptTransportModeComboBox");
+        ReceiptUsbVendorIdTextBox = FindControl<KryptonTextBox>("ReceiptUsbVendorIdTextBox");
+        ReceiptUsbProductIdTextBox = FindControl<KryptonTextBox>("ReceiptUsbProductIdTextBox");
+        ReceiptImageCommandModeComboBox = FindControl<KryptonComboBox>("ReceiptImageCommandModeComboBox");
+        ReceiptPrinterEnabledCheckBox = FindControl<KryptonCheckBox>("ReceiptPrinterEnabledCheckBox");
+        LabelPrinterComboBox = FindControl<KryptonComboBox>("LabelPrinterComboBox");
+        LabelTransportModeComboBox = FindControl<KryptonComboBox>("LabelTransportModeComboBox");
+        LabelUsbVendorIdTextBox = FindControl<KryptonTextBox>("LabelUsbVendorIdTextBox");
+        LabelUsbProductIdTextBox = FindControl<KryptonTextBox>("LabelUsbProductIdTextBox");
+        LabelPrinterEnabledCheckBox = FindControl<KryptonCheckBox>("LabelPrinterEnabledCheckBox");
+        LabelCharacterEncodingTextBox = FindControl<KryptonTextBox>("LabelCharacterEncodingTextBox");
+        LabelCodePageTextBox = FindControl<KryptonTextBox>("LabelCodePageTextBox");
+        PosTerminalEnabledCheckBox = FindControl<KryptonCheckBox>("PosTerminalEnabledCheckBox");
+        PosTerminalHostTextBox = FindControl<KryptonTextBox>("PosTerminalHostTextBox");
+        PosTerminalPortBox = FindControl<KryptonNumericUpDown>("PosTerminalPortBox");
+        PosTerminalMerchantIdTextBox = FindControl<KryptonTextBox>("PosTerminalMerchantIdTextBox");
+        PosTerminalTimeoutBox = FindControl<KryptonNumericUpDown>("PosTerminalTimeoutBox");
+        TsplLabelWidthBox = FindControl<KryptonNumericUpDown>("TsplLabelWidthBox");
+        TsplLabelHeightBox = FindControl<KryptonNumericUpDown>("TsplLabelHeightBox");
+        TsplLabelGapBox = FindControl<KryptonNumericUpDown>("TsplLabelGapBox");
+        TsplDirectionComboBox = FindControl<KryptonComboBox>("TsplDirectionComboBox");
+        TsplSpeedBox = FindControl<KryptonNumericUpDown>("TsplSpeedBox");
+        TsplDensityBox = FindControl<KryptonNumericUpDown>("TsplDensityBox");
+        ApiBaseUrlTextBox = FindControl<KryptonTextBox>("ApiBaseUrlTextBox");
+        RegistrationTokenTextBox = FindControl<KryptonTextBox>("RegistrationTokenTextBox");
+        AgentNameTextBox = FindControl<KryptonTextBox>("AgentNameTextBox");
+        StartWithWindowsCheckBox = FindControl<KryptonCheckBox>("StartWithWindowsCheckBox");
+        StatusLabel = FindControl<KryptonLabel>("StatusLabel");
 
         LoadInitialValues();
         LoadPrinters();
@@ -120,27 +126,26 @@ internal partial class SetupWizardFormCore : Form
 
     private Control BuildFooter()
     {
-        var statusLabel = new Label
+        var statusLabel = new KryptonLabel
         {
             Name = "StatusLabel",
             AutoSize = true,
             Dock = DockStyle.Fill,
             ForeColor = Color.FromArgb(16, 70, 133),
             Text = IsFirstRun
-                ? "Complete registration and save the production settings for this workstation."
-                : "Update local settings or re-register this workstation.",
-            MaximumSize = new Size(680, 0),
-            TextAlign = ContentAlignment.MiddleLeft
+                ? "Complete registration, then save production settings."
+                : "Update settings or re-register this workstation.",
+            MaximumSize = new Size(760, 0)
         };
 
-        var saveButton = new Button
+        var saveButton = new KryptonButton
         {
             Text = IsFirstRun ? "Register and Start" : "Save Settings",
             AutoSize = true
         };
         saveButton.Click += async (_, _) => await SaveAsync();
 
-        var cancelButton = new Button
+        var cancelButton = new KryptonButton
         {
             Text = IsFirstRun ? "Exit" : "Cancel",
             AutoSize = true
@@ -182,19 +187,20 @@ internal partial class SetupWizardFormCore : Form
     {
         var layout = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill,
+            Dock = DockStyle.Top,
             ColumnCount = 2,
             AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Padding = new Padding(12)
         };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 260));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         return layout;
     }
 
     protected void ToggleEnabled(bool enabled)
     {
-        foreach (Control control in Controls)
+        foreach (var control in _toggleRootControls)
         {
             control.Enabled = enabled;
         }

@@ -1,3 +1,4 @@
+using Krypton.Toolkit;
 using System.Windows.Forms;
 using WorkstationAgent.Branding;
 using WorkstationAgent.Configuration;
@@ -61,7 +62,7 @@ internal partial class SetupWizardFormCore
         PopulatePrinterCombo(LabelPrinterComboBox, printers, InitialSettings.LabelPrinter.PrinterName);
     }
 
-    private static void PopulatePrinterCombo(ComboBox comboBox, IReadOnlyCollection<string> printers, string selectedPrinter)
+    private static void PopulatePrinterCombo(KryptonComboBox comboBox, IReadOnlyCollection<string> printers, string selectedPrinter)
     {
         comboBox.Items.Clear();
         comboBox.Items.Add(string.Empty);
@@ -284,16 +285,20 @@ internal partial class SetupWizardFormCore
 
         StatusLabel.Text = (IsDirectUsb(ReceiptTransportModeComboBox), IsDirectUsb(LabelTransportModeComboBox)) switch
         {
-            (true, true) => "Direct USB selected for both printers. Configure VID/PID carefully for each role.",
-            (true, false) => "Receipt printer uses Direct USB. Configure its VID/PID and use receipt/logo tests to validate output.",
-            (false, true) => "Label printer uses Direct USB. Configure its VID/PID and use TSPL test print to validate output.",
+            (true, true) => "Direct USB selected for both printers. Verify VID/PID for each role.",
+            (true, false) => "Receipt printer uses Direct USB. Configure VID/PID, then run a print test.",
+            (false, true) => "Label printer uses Direct USB. Configure VID/PID, then run the TSPL test.",
             _ => IsFirstRun
-                ? "Complete registration and save the production settings for this workstation."
-                : "Update local settings or re-register this workstation."
+                ? "Complete registration, then save production settings."
+                : "Update settings or re-register this workstation."
         };
     }
 
-    private static void UpdateTransportFields(ComboBox transportComboBox, ComboBox printerComboBox, TextBox usbVendorIdTextBox, TextBox usbProductIdTextBox)
+    private static void UpdateTransportFields(
+        KryptonComboBox transportComboBox,
+        KryptonComboBox printerComboBox,
+        KryptonTextBox usbVendorIdTextBox,
+        KryptonTextBox usbProductIdTextBox)
     {
         var isDirectUsb = IsDirectUsb(transportComboBox);
         printerComboBox.Enabled = !isDirectUsb;
@@ -301,7 +306,7 @@ internal partial class SetupWizardFormCore
         usbProductIdTextBox.Enabled = isDirectUsb;
     }
 
-    private static bool IsDirectUsb(ComboBox comboBox)
+    private static bool IsDirectUsb(KryptonComboBox comboBox)
     {
         return string.Equals(comboBox.Text, PrinterTransportMode.DirectUsb, StringComparison.OrdinalIgnoreCase);
     }

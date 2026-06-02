@@ -1,4 +1,5 @@
 using System.Text;
+using Krypton.Toolkit;
 using WorkstationAgent.Branding;
 using WorkstationAgent.Configuration;
 using WorkstationAgent.Forms;
@@ -13,6 +14,10 @@ internal static class Program
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         ApplicationConfiguration.Initialize();
+        using var kryptonPalette = new KryptonManager
+        {
+            GlobalPaletteMode = PaletteMode.Microsoft365BlueLightMode
+        };
 
         var paths = new AgentPaths();
         paths.EnsureDirectories();
