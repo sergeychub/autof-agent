@@ -37,6 +37,13 @@ if getent group lp >/dev/null; then
   usermod --append --groups lp avtoforward-agent
 fi
 
+if ! command -v lp >/dev/null 2>&1; then
+  echo "Warning: CUPS client is missing. Install cups-client before using transportMode=cups." >&2
+fi
+if ! command -v magick >/dev/null 2>&1 && ! command -v convert >/dev/null 2>&1; then
+  echo "Warning: ImageMagick is missing. Install imagemagick before printing image or bitmap-text blocks." >&2
+fi
+
 install -d -m 0755 -o root -g root "$install_dir"
 install -d -m 0750 -o root -g avtoforward-agent "$config_dir"
 install -d -m 0750 -o avtoforward-agent -g avtoforward-agent "$state_dir"

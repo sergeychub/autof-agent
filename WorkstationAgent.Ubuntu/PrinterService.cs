@@ -1,6 +1,3 @@
-using System.Diagnostics;
-using System.Net.Sockets;
-
 namespace WorkstationAgent.Ubuntu;
 
 internal sealed class PrinterService
@@ -8,13 +5,19 @@ internal sealed class PrinterService
     private readonly AgentSettings _settings;
     private readonly AgentLogger _logger;
     private readonly PrintPayloadBuilder _payloadBuilder;
+    private readonly PrinterTransportClient _transportClient;
     private readonly SemaphoreSlim _printLock = new(1, 1);
 
-    public PrinterService(AgentSettings settings, AgentLogger logger, PrintPayloadBuilder payloadBuilder)
+    public PrinterService(
+        AgentSettings settings,
+        AgentLogger logger,
+        PrintPayloadBuilder payloadBuilder,
+        PrinterTransportClient? transportClient = null)
     {
         _settings = settings;
         _logger = logger;
         _payloadBuilder = payloadBuilder;
+        _transportClient = transportClient ?? new PrinterTransportClient();
     }
 
     public async Task<PrinterTestResult> PrintReceiptTestAsync(string requestId, CancellationToken cancellationToken)
@@ -27,7 +30,7 @@ internal sealed class PrinterService
             try
             {
                 EnsureEnabled(endpoint, "Receipt printer");
-                await SendAsync(
+                await _transportClient.SendAsync(
                     endpoint,
                     _payloadBuilder.BuildReceiptTest(_settings),
                     "Avtoforward Agent Ubuntu test receipt",
@@ -72,7 +75,7 @@ internal sealed class PrinterService
             {
                 EnsureEnabled(endpoint, "Label printer");
                 var payload = await _payloadBuilder.BuildLabelTestAsync(_settings, cancellationToken);
-                await SendAsync(endpoint, payload, documentName, cancellationToken);
+                await _transportClient.SendAsync(endpoint, payload, documentName, cancellationToken);
             }
             finally
             {
@@ -117,7 +120,7 @@ internal sealed class PrinterService
             {
                 EnsureEnabled(endpoint, PrinterRoles.IsLabel(request.Target) ? "Label printer" : "Receipt printer");
                 var payload = await _payloadBuilder.BuildAsync(_settings, endpoint, request, cancellationToken);
-                await SendAsync(endpoint, payload, documentName, cancellationToken);
+                await _transportClient.SendAsync(endpoint, payload, documentName, cancellationToken);
             }
             finally
             {
@@ -178,110 +181,4 @@ internal sealed class PrinterService
         return $"cups:{endpoint.PrinterName}";
     }
 
-    private static Task SendAsync(
-        PrinterEndpointSettings endpoint,
-        byte[] payload,
-        string documentName,
-        CancellationToken cancellationToken)
-    {
-        if (string.Equals(endpoint.TransportMode, PrinterTransportMode.Device, StringComparison.OrdinalIgnoreCase))
-        {
-            return SendToDeviceAsync(endpoint, payload, cancellationToken);
-        }
-        if (string.Equals(endpoint.TransportMode, PrinterTransportMode.Tcp, StringComparison.OrdinalIgnoreCase))
-        {
-            return SendToTcpAsync(endpoint, payload, cancellationToken);
-        }
-        return SendToCupsAsync(endpoint, payload, documentName, cancellationToken);
-    }
-
-    private static async Task SendToDeviceAsync(
-        PrinterEndpointSettings endpoint,
-        byte[] payload,
-        CancellationToken cancellationToken)
-    {
-        var path = endpoint.DevicePath
-            ?? throw new InvalidOperationException("devicePath is required for device printing.");
-        await using var stream = new FileStream(
-            path,
-            FileMode.Open,
-            FileAccess.Write,
-            FileShare.ReadWrite,
-            4096,
-            FileOptions.Asynchronous);
-        await stream.WriteAsync(payload, cancellationToken);
-        await stream.FlushAsync(cancellationToken);
-    }
-
-    private static async Task SendToTcpAsync(
-        PrinterEndpointSettings endpoint,
-        byte[] payload,
-        CancellationToken cancellationToken)
-    {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, endpoint.ConnectTimeoutSeconds)));
-        using var client = new TcpClient();
-        await client.ConnectAsync(
-            endpoint.Host ?? throw new InvalidOperationException("host is required for TCP printing."),
-            endpoint.Port,
-            timeout.Token);
-        await using var stream = client.GetStream();
-        await stream.WriteAsync(payload, timeout.Token);
-        await stream.FlushAsync(timeout.Token);
-    }
-
-    private static async Task SendToCupsAsync(
-        PrinterEndpointSettings endpoint,
-        byte[] payload,
-        string documentName,
-        CancellationToken cancellationToken)
-    {
-        var executable = File.Exists("/usr/bin/lp") ? "/usr/bin/lp" : "lp";
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = executable,
-            UseShellExecute = false,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true
-        };
-        startInfo.ArgumentList.Add("-d");
-        startInfo.ArgumentList.Add(endpoint.PrinterName);
-        startInfo.ArgumentList.Add("-o");
-        startInfo.ArgumentList.Add("raw");
-        startInfo.ArgumentList.Add("-t");
-        startInfo.ArgumentList.Add(documentName.Length <= 120 ? documentName : documentName[..120]);
-
-        using var process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("Unable to start the CUPS lp command.");
-        var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.StandardInput.BaseStream.WriteAsync(payload, cancellationToken);
-        process.StandardInput.Close();
-        try
-        {
-            await process.WaitForExitAsync(cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            if (!process.HasExited)
-            {
-                process.Kill(true);
-            }
-            throw;
-        }
-
-        var stdout = await stdoutTask;
-        var stderr = await stderrTask;
-        if (process.ExitCode != 0)
-        {
-            throw new InvalidOperationException(
-                $"CUPS rejected the print job with exit code {process.ExitCode}: {stderr.Trim()}");
-        }
-        if (string.IsNullOrWhiteSpace(stdout))
-        {
-            throw new InvalidOperationException("CUPS did not return a print job identifier.");
-        }
-    }
 }

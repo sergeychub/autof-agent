@@ -250,7 +250,7 @@ internal sealed class PrintPayloadBuilder
         return stream.ToArray();
     }
 
-    private static void WriteEscPosBitmap(Stream stream, MonochromeBitmap bitmap)
+    internal static void WriteEscPosBitmap(Stream stream, MonochromeBitmap bitmap)
     {
         Write(stream, 0x1B, 0x61, 0x01);
         Write(stream, 0x1D, 0x76, 0x30, 0x00,
@@ -260,7 +260,7 @@ internal sealed class PrintPayloadBuilder
         Write(stream, 0x0A, 0x1B, 0x61, 0x00);
     }
 
-    private static void WriteTsplBitmap(Stream stream, TsplElement element, MonochromeBitmap bitmap)
+    internal static void WriteTsplBitmap(Stream stream, TsplElement element, MonochromeBitmap bitmap)
     {
         var header = Encoding.ASCII.GetBytes(
             $"BITMAP {element.X},{element.Y},{bitmap.WidthBytes},{bitmap.Height},{Math.Max(0, element.BitmapMode ?? 0)},");

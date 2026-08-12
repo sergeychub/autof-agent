@@ -77,3 +77,22 @@ sudo journalctl -u avtoforward-agent -f
 ```
 
 The installer creates an unprivileged `avtoforward-agent` system user and adds it to the `lp` group. Direct USB mode can still require a printer-specific udev rule granting that group write access.
+
+## Peripheral-free compatibility checks
+
+`WorkstationAgent.Ubuntu.Tests` verifies printer control without sending a job to physical hardware:
+
+- the device transport writes an unchanged byte stream to a Linux device-like file;
+- the TCP transport sends an unchanged stream to an emulated raw port 9100 printer;
+- a CUPS `lp` shim verifies the destination, raw mode, title, standard-input marker, payload, and error handling;
+- API-shaped `raw-base64`, structured ESC/POS, and TSPL jobs are deserialized and converted to their expected command streams;
+- ESC/POS and TSPL bitmap data use set bits for printed dots;
+- print result JSON uses the field names consumed by `WorkstationAgentGateway`.
+
+Run the suite with:
+
+```bash
+dotnet test WorkstationAgent.Ubuntu.Tests/WorkstationAgent.Ubuntu.Tests.csproj -c Release
+```
+
+These checks cover software and transport compatibility. A final hardware smoke test is still required for USB permissions, the exact printer firmware dialect, media calibration, cutter behavior, and print density.

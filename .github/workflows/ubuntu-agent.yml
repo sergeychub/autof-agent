@@ -21,10 +21,13 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Restore
-        run: dotnet restore WorkstationAgent.Ubuntu/WorkstationAgent.Ubuntu.csproj --configfile WorkstationAgent/NuGet.Config
+        run: dotnet restore WorkstationAgent.Ubuntu.Tests/WorkstationAgent.Ubuntu.Tests.csproj --configfile WorkstationAgent/NuGet.Config
 
       - name: Build
         run: dotnet build WorkstationAgent.Ubuntu/WorkstationAgent.Ubuntu.csproj --configuration Release --no-restore
+
+      - name: Test printer protocols and transports
+        run: dotnet test WorkstationAgent.Ubuntu.Tests/WorkstationAgent.Ubuntu.Tests.csproj --configuration Release --no-restore
 
       - name: Publish linux-x64
         run: ./scripts/publish-ubuntu.sh linux-x64 "0.1.${{ github.run_number }}+${{ github.sha }}"

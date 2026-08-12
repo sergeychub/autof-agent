@@ -7,7 +7,6 @@ Wants=network-online.target
 Type=simple
 User=avtoforward-agent
 Group=avtoforward-agent
-SupplementaryGroups=lp
 WorkingDirectory=/opt/avtoforward-agent
 ExecStart=/opt/avtoforward-agent/WorkstationAgent.Ubuntu --config /etc/avtoforward-agent/agentsettings.json --state /var/lib/avtoforward-agent/state.json
 Restart=always
