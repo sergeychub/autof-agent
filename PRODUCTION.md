@@ -38,3 +38,13 @@ The elevated updater also refreshes its ProgramData runner script during updates
 ## MSI
 
 `build-msi.ps1` is included as a production packaging entrypoint, but this environment does not currently have WiX Toolset installed. Once WiX is present, the MSI wrapper can be added around the published runtime in `artifacts\publish\win-x64`.
+
+## Ubuntu agent
+
+The solution also contains the headless `WorkstationAgent.Ubuntu` project. It uses the same API registration and Socket.IO contracts, replaces Windows printing with CUPS/direct-device/TCP transports, and runs as an unprivileged `systemd` service.
+
+- Build and package: `./scripts/publish-ubuntu.sh`
+- Install the published package: `sudo ./scripts/install-ubuntu-agent.sh ./artifacts/publish/linux-x64`
+- Configuration and operational notes: `WorkstationAgent.Ubuntu/README.md`
+
+Ubuntu releases currently use manual package deployment. The signed Windows auto-updater must not be pointed at Linux artifacts until a Linux-specific atomic update and rollback flow is implemented.

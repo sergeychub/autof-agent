@@ -1,0 +1,24 @@
+[Unit]
+Description=Avtoforward Workstation Agent for Ubuntu
+After=network-online.target cups.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=avtoforward-agent
+Group=avtoforward-agent
+SupplementaryGroups=lp
+WorkingDirectory=/opt/avtoforward-agent
+ExecStart=/opt/avtoforward-agent/WorkstationAgent.Ubuntu --config /etc/avtoforward-agent/agentsettings.json --state /var/lib/avtoforward-agent/state.json
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+Environment=DOTNET_EnableDiagnostics=0
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/avtoforward-agent
+
+[Install]
+WantedBy=multi-user.target

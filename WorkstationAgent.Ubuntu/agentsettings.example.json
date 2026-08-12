@@ -1,0 +1,47 @@
+{
+  "agentName": "ubuntu-workstation-01",
+  "reportedUserName": "warehouse",
+  "apiBaseUrl": "https://api.example.com",
+  "socketIoUrl": "",
+  "registrationToken": "CHANGE_ME",
+  "receiptPrinter": {
+    "enabled": false,
+    "transportMode": "cups",
+    "printerName": "XP-58IIH",
+    "devicePath": "/dev/usb/lp0",
+    "host": "192.168.1.50",
+    "port": 9100,
+    "connectTimeoutSeconds": 10,
+    "characterEncoding": "cp866",
+    "feedLinesAfterPrint": 4,
+    "maxImageWidthDots": 384
+  },
+  "labelPrinter": {
+    "enabled": false,
+    "transportMode": "cups",
+    "printerName": "TSC-Label",
+    "devicePath": "/dev/usb/lp1",
+    "host": "192.168.1.51",
+    "port": 9100,
+    "connectTimeoutSeconds": 10,
+    "characterEncoding": "ascii",
+    "labelWidthMm": 30,
+    "labelHeightMm": 20,
+    "gapMm": 2,
+    "direction": 0,
+    "speed": 2,
+    "density": 8,
+    "codePage": null
+  },
+  "posTerminal": {
+    "enabled": false,
+    "host": "192.168.0.103",
+    "port": 2000,
+    "merchantId": "1",
+    "timeoutSeconds": 180
+  },
+  "reconnectDelaySeconds": 5,
+  "heartbeatIntervalSeconds": 30,
+  "updateChannel": "main",
+  "logFilePath": null
+}
