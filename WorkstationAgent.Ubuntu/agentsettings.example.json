@@ -42,6 +42,7 @@
   },
   "reconnectDelaySeconds": 5,
   "heartbeatIntervalSeconds": 30,
+  "autoUpdateEnabled": true,
   "updateChannel": "main",
   "logFilePath": null
 }

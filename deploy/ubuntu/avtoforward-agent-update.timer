@@ -1,0 +1,12 @@
+[Unit]
+Description=Check for Avtoforward Workstation Agent updates
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+RandomizedDelaySec=2min
+Persistent=true
+Unit=avtoforward-agent-update.service
+
+[Install]
+WantedBy=timers.target

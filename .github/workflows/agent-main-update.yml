@@ -39,7 +39,7 @@ jobs:
         run: |
           $shortSha = '${{ github.sha }}'.Substring(0, 12)
           $version = "0.1.${{ github.run_number }}+$shortSha"
-          $releaseId = "main-${{ github.run_number }}-$shortSha"
+          $releaseId = "win-main-${{ github.run_number }}-$shortSha"
           "AGENT_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
           "RELEASE_ID=$releaseId" | Out-File -FilePath $env:GITHUB_ENV -Append
           "SHORT_SHA=$shortSha" | Out-File -FilePath $env:GITHUB_ENV -Append
@@ -47,6 +47,10 @@ jobs:
       - name: Restore
         shell: pwsh
         run: dotnet restore workstation-agent.sln --configfile WorkstationAgent/NuGet.Config
+
+      - name: Test updater trust and versioning
+        shell: pwsh
+        run: dotnet test WorkstationAgent.Update.Tests/WorkstationAgent.Update.Tests.csproj --configuration Release --no-restore
 
       - name: Publish
         shell: pwsh
@@ -132,6 +136,7 @@ jobs:
             }
 
       - name: Upload package artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: workstation-agent-${{ env.RUNTIME }}-${{ env.RELEASE_ID }}

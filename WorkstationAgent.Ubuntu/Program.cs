@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Text;
 using System.Runtime.InteropServices;
+using WorkstationAgent.Update;
 
 namespace WorkstationAgent.Ubuntu;
 
@@ -73,6 +75,37 @@ internal static class Program
                 identityStore.Save(identity);
             }
 
+            var updatesDirectory = Path.Combine(
+                Path.GetDirectoryName(options.StatePath) ?? AppContext.BaseDirectory,
+                "updates");
+            var updateStateStore = new UpdateStateStore(Path.Combine(updatesDirectory, "state.json"));
+            if (options.UpdateOnce)
+            {
+                using var updateHttpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
+                var targetBinaryPath = Path.Combine(AppContext.BaseDirectory, "WorkstationAgent.Ubuntu");
+                if (!File.Exists(targetBinaryPath))
+                {
+                    targetBinaryPath = Environment.ProcessPath
+                        ?? throw new InvalidOperationException("Running agent executable path could not be resolved.");
+                }
+                var updateService = new UbuntuUpdateService(
+                    settings,
+                    identity,
+                    logger,
+                    updateHttpClient,
+                    updateStateStore,
+                    updatesDirectory,
+                    targetBinaryPath,
+                    AgentRuntime.Version,
+                    UpdateTrust.ManifestPublicKeyPem,
+                    cancellationToken => RestartAgentServiceAsync(
+                        options.RestartServiceName,
+                        options.SystemctlUser,
+                        cancellationToken));
+                await updateService.RunOnceAsync(CancellationToken.None);
+                return 0;
+            }
+
             using var shutdown = new CancellationTokenSource();
             Console.CancelKeyPress += (_, eventArgs) =>
             {
@@ -95,7 +128,8 @@ internal static class Program
                 identity,
                 logger,
                 printerService,
-                posTerminalService);
+                posTerminalService,
+                updateStateStore.ReadStatus);
             await socketClient.RunAsync(shutdown.Token);
             logger.Info("Agent stopped.");
             return 0;
@@ -124,6 +158,9 @@ internal static class Program
               --print-test receipt   Print a test receipt and exit
               --print-test label     Print a test label and exit
               --pos-test             Test the PrivatBank POS connection and exit
+              --update-once          Check, verify, install, and restart after one update
+              --restart-service NAME Service restarted after an update (default: avtoforward-agent.service)
+              --systemctl-user       Restart a user service; intended for non-root test installations
               --help                 Show this help
 
             Environment:
@@ -139,6 +176,9 @@ internal static class Program
         bool ForceRegistration,
         string? PrintTest,
         bool PosTest,
+        bool UpdateOnce,
+        string RestartServiceName,
+        bool SystemctlUser,
         bool ShowHelp)
     {
         public static CommandLineOptions Parse(string[] args)
@@ -149,6 +189,9 @@ internal static class Program
             var register = false;
             string? printTest = null;
             var posTest = false;
+            var updateOnce = false;
+            var restartServiceName = "avtoforward-agent.service";
+            var systemctlUser = false;
             var showHelp = false;
 
             for (var index = 0; index < args.Length; index++)
@@ -177,6 +220,19 @@ internal static class Program
                     case "--pos-test":
                         posTest = true;
                         break;
+                    case "--update-once":
+                        updateOnce = true;
+                        break;
+                    case "--restart-service":
+                        restartServiceName = ReadValue(args, ref index, "--restart-service");
+                        if (restartServiceName.IndexOfAny(['/', '\\']) >= 0)
+                        {
+                            throw new ArgumentException("--restart-service must be a systemd unit name.");
+                        }
+                        break;
+                    case "--systemctl-user":
+                        systemctlUser = true;
+                        break;
                     case "--help" or "-h":
                         showHelp = true;
                         break;
@@ -192,6 +248,9 @@ internal static class Program
                 register,
                 printTest,
                 posTest,
+                updateOnce,
+                restartServiceName,
+                systemctlUser,
                 showHelp);
         }
 
@@ -203,6 +262,39 @@ internal static class Program
                 throw new ArgumentException($"{option} requires a value.");
             }
             return args[index];
+        }
+    }
+
+    private static async Task RestartAgentServiceAsync(
+        string serviceName,
+        bool userScope,
+        CancellationToken cancellationToken)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "/usr/bin/systemctl",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        if (userScope)
+        {
+            startInfo.ArgumentList.Add("--user");
+        }
+        startInfo.ArgumentList.Add("restart");
+        startInfo.ArgumentList.Add(serviceName);
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Unable to start systemctl.");
+        var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+        await process.WaitForExitAsync(cancellationToken);
+        var output = await outputTask;
+        var error = await errorTask;
+        if (process.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"Agent service restart failed. ExitCode={process.ExitCode}. {output} {error}".Trim());
         }
     }
 }

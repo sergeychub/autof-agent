@@ -43,6 +43,9 @@ internal sealed class AgentSettings
     [JsonPropertyName("updateChannel")]
     public string UpdateChannel { get; set; } = "main";
 
+    [JsonPropertyName("autoUpdateEnabled")]
+    public bool AutoUpdateEnabled { get; set; } = true;
+
     [JsonPropertyName("logFilePath")]
     public string? LogFilePath { get; set; }
 }

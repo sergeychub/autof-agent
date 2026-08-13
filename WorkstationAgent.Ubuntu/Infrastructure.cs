@@ -81,6 +81,10 @@ internal sealed class SettingsStore
         {
             throw new InvalidOperationException("Reconnect and heartbeat intervals must be greater than zero.");
         }
+        if (string.IsNullOrWhiteSpace(settings.UpdateChannel))
+        {
+            throw new InvalidOperationException("updateChannel is required.");
+        }
 
         ValidatePrinter(settings.ReceiptPrinter, "receiptPrinter");
         ValidatePrinter(settings.LabelPrinter, "labelPrinter");

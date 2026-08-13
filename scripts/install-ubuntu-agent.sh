@@ -13,6 +13,8 @@ install_dir="/opt/avtoforward-agent"
 config_dir="/etc/avtoforward-agent"
 state_dir="/var/lib/avtoforward-agent"
 service_source="$script_dir/avtoforward-agent.service"
+update_service_source="$script_dir/avtoforward-agent-update.service"
+update_timer_source="$script_dir/avtoforward-agent-update.timer"
 
 if [[ ! -x "$source_dir/WorkstationAgent.Ubuntu" ]]; then
   echo "Published WorkstationAgent.Ubuntu binary was not found in $source_dir." >&2
@@ -24,6 +26,16 @@ if [[ ! -f "$service_source" ]]; then
 fi
 if [[ ! -f "$service_source" ]]; then
   echo "avtoforward-agent.service was not found." >&2
+  exit 1
+fi
+if [[ ! -f "$update_service_source" ]]; then
+  update_service_source="$repo_dir/deploy/ubuntu/avtoforward-agent-update.service"
+fi
+if [[ ! -f "$update_timer_source" ]]; then
+  update_timer_source="$repo_dir/deploy/ubuntu/avtoforward-agent-update.timer"
+fi
+if [[ ! -f "$update_service_source" || ! -f "$update_timer_source" ]]; then
+  echo "Ubuntu auto-update systemd units were not found." >&2
   exit 1
 fi
 
@@ -59,8 +71,12 @@ if [[ ! -f "$config_dir/agentsettings.json" ]]; then
 fi
 
 install -m 0644 -o root -g root "$service_source" /etc/systemd/system/avtoforward-agent.service
+install -m 0644 -o root -g root "$update_service_source" /etc/systemd/system/avtoforward-agent-update.service
+install -m 0644 -o root -g root "$update_timer_source" /etc/systemd/system/avtoforward-agent-update.timer
 systemctl daemon-reload
 systemctl enable avtoforward-agent.service
+systemctl enable --now avtoforward-agent-update.timer
 
 echo "Installed Avtoforward Agent for Ubuntu."
+echo "Automatic update timer: avtoforward-agent-update.timer"
 echo "Edit $config_dir/agentsettings.json, then run: systemctl restart avtoforward-agent"

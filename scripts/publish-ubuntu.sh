@@ -20,5 +20,7 @@ dotnet publish "$repo_dir/WorkstationAgent.Ubuntu/WorkstationAgent.Ubuntu.csproj
 
 install -m 0755 "$script_dir/install-ubuntu-agent.sh" "$output_dir/install-ubuntu-agent.sh"
 install -m 0644 "$repo_dir/deploy/ubuntu/avtoforward-agent.service" "$output_dir/avtoforward-agent.service"
+install -m 0644 "$repo_dir/deploy/ubuntu/avtoforward-agent-update.service" "$output_dir/avtoforward-agent-update.service"
+install -m 0644 "$repo_dir/deploy/ubuntu/avtoforward-agent-update.timer" "$output_dir/avtoforward-agent-update.timer"
 
 echo "Ubuntu agent published to $output_dir"

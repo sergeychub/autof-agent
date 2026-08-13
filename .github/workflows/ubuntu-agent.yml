@@ -11,6 +11,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      RUNTIME: linux-x64
+      UPDATE_PUBLISH_URL: ${{ secrets.UPDATE_PUBLISH_URL }}
+      UPDATE_PUBLISH_TOKEN: ${{ secrets.UPDATE_PUBLISH_TOKEN }}
+      UPDATE_MANIFEST_PRIVATE_KEY: ${{ secrets.UPDATE_MANIFEST_PRIVATE_KEY }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,6 +25,15 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+
+      - name: Compute version
+        shell: bash
+        run: |
+          short_sha="${GITHUB_SHA:0:12}"
+          version="0.1.${GITHUB_RUN_NUMBER}+${short_sha}"
+          release_id="linux-main-${GITHUB_RUN_NUMBER}-${short_sha}"
+          echo "AGENT_VERSION=${version}" >> "$GITHUB_ENV"
+          echo "RELEASE_ID=${release_id}" >> "$GITHUB_ENV"
 
       - name: Restore
         run: dotnet restore WorkstationAgent.Ubuntu.Tests/WorkstationAgent.Ubuntu.Tests.csproj --configfile WorkstationAgent/NuGet.Config
@@ -30,7 +45,83 @@ jobs:
         run: dotnet test WorkstationAgent.Ubuntu.Tests/WorkstationAgent.Ubuntu.Tests.csproj --configuration Release --no-restore
 
       - name: Publish linux-x64
-        run: ./scripts/publish-ubuntu.sh linux-x64 "0.1.${{ github.run_number }}+${{ github.sha }}"
+        run: ./scripts/publish-ubuntu.sh "$RUNTIME" "$AGENT_VERSION"
+
+      - name: Package signed release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          package_dir="$GITHUB_WORKSPACE/artifacts/package"
+          package_path="$package_dir/WorkstationAgent-$RUNTIME-$RELEASE_ID.zip"
+          mkdir -p "$package_dir"
+          (
+            cd "$GITHUB_WORKSPACE/artifacts/publish/$RUNTIME"
+            zip -q -r "$package_path" .
+          )
+          echo "PACKAGE_PATH=$package_path" >> "$GITHUB_ENV"
+
+      - name: Create signed manifest
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:UPDATE_MANIFEST_PRIVATE_KEY)) {
+            throw 'UPDATE_MANIFEST_PRIVATE_KEY secret is required.'
+          }
+
+          $sha256 = (Get-FileHash -Path $env:PACKAGE_PATH -Algorithm SHA256).Hash.ToLowerInvariant()
+          $sizeBytes = (Get-Item -LiteralPath $env:PACKAGE_PATH).Length
+          $publishedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
+          $downloadUrl = "/workstation-agent/update/download/$env:RELEASE_ID"
+          $payload = @(
+            $env:RELEASE_ID,
+            'main',
+            $env:RUNTIME,
+            $env:AGENT_VERSION,
+            '${{ github.sha }}',
+            $publishedAtUtc,
+            $sizeBytes.ToString([System.Globalization.CultureInfo]::InvariantCulture),
+            $sha256,
+            $downloadUrl
+          ) -join "`n"
+
+          $rsa = [System.Security.Cryptography.RSA]::Create()
+          $rsa.ImportFromPem($env:UPDATE_MANIFEST_PRIVATE_KEY)
+          $signatureBytes = $rsa.SignData(
+            [System.Text.Encoding]::UTF8.GetBytes($payload),
+            [System.Security.Cryptography.HashAlgorithmName]::SHA256,
+            [System.Security.Cryptography.RSASignaturePadding]::Pss)
+          $signature = [Convert]::ToBase64String($signatureBytes)
+
+          $manifest = [ordered]@{
+            releaseId = $env:RELEASE_ID
+            channel = 'main'
+            runtime = $env:RUNTIME
+            version = $env:AGENT_VERSION
+            commitSha = '${{ github.sha }}'
+            publishedAtUtc = $publishedAtUtc
+            sizeBytes = $sizeBytes
+            sha256 = $sha256
+            downloadUrl = $downloadUrl
+            signature = $signature
+          }
+
+          $manifestPath = Join-Path $PWD 'artifacts/package/manifest.json'
+          $manifest | ConvertTo-Json -Depth 4 | Set-Content -Path $manifestPath -Encoding UTF8
+          "MANIFEST_PATH=$manifestPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Publish update to backend
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          if [[ -z "$UPDATE_PUBLISH_URL" || -z "$UPDATE_PUBLISH_TOKEN" ]]; then
+            echo 'UPDATE_PUBLISH_URL and UPDATE_PUBLISH_TOKEN secrets are required.' >&2
+            exit 1
+          fi
+          curl --fail-with-body --show-error --silent --retry 3 --retry-all-errors --retry-delay 5 \
+            -H "Authorization: Bearer $UPDATE_PUBLISH_TOKEN" \
+            -F "manifest=@$MANIFEST_PATH;type=application/json" \
+            -F "artifact=@$PACKAGE_PATH;type=application/zip" \
+            "$UPDATE_PUBLISH_URL"
 
       - name: Upload package
         uses: actions/upload-artifact@v4
@@ -38,3 +129,13 @@ jobs:
           name: workstation-agent-linux-x64
           path: artifacts/publish/linux-x64
           if-no-files-found: error
+
+      - name: Upload signed release package
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workstation-agent-${{ env.RUNTIME }}-${{ env.RELEASE_ID }}
+          path: |
+            ${{ env.PACKAGE_PATH }}
+            artifacts/package/manifest.json
+          if-no-files-found: ignore

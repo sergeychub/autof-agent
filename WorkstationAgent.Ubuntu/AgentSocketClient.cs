@@ -11,6 +11,7 @@ internal sealed class AgentSocketClient : IAsyncDisposable
     private readonly AgentLogger _logger;
     private readonly PrinterService _printerService;
     private readonly PosTerminalService _posTerminalService;
+    private readonly Func<string> _lastUpdateStatusProvider;
     private SocketIOClient.SocketIO? _activeSocket;
     private TaskCompletionSource _connectionAcknowledged = NewCompletionSource();
     private CancellationToken _lifetimeToken;
@@ -20,13 +21,15 @@ internal sealed class AgentSocketClient : IAsyncDisposable
         AgentIdentity identity,
         AgentLogger logger,
         PrinterService printerService,
-        PosTerminalService posTerminalService)
+        PosTerminalService posTerminalService,
+        Func<string> lastUpdateStatusProvider)
     {
         _settings = settings;
         _identity = identity;
         _logger = logger;
         _printerService = printerService;
         _posTerminalService = posTerminalService;
+        _lastUpdateStatusProvider = lastUpdateStatusProvider;
     }
 
     public async Task RunAsync(CancellationToken cancellationToken)
@@ -117,7 +120,7 @@ internal sealed class AgentSocketClient : IAsyncDisposable
                 apiKey = _identity.ApiKey,
                 agentVersion = AgentRuntime.Version,
                 updateChannel = _settings.UpdateChannel,
-                lastUpdateStatus = "manual",
+                lastUpdateStatus = _lastUpdateStatusProvider(),
                 runtime = "linux-x64"
             }
         });
@@ -164,7 +167,7 @@ internal sealed class AgentSocketClient : IAsyncDisposable
                 userName = AgentRuntime.UserName(_settings),
                 agentVersion = AgentRuntime.Version,
                 updateChannel = _settings.UpdateChannel,
-                lastUpdateStatus = "manual",
+                lastUpdateStatus = _lastUpdateStatusProvider(),
                 timestamp = DateTimeOffset.UtcNow
             });
             await Task.Delay(

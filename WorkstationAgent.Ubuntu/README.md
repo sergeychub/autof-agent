@@ -14,10 +14,11 @@ Headless Ubuntu implementation of the Autof workstation agent. It uses the exist
 - CUPS raw queues, direct Linux character devices such as `/dev/usb/lp0`, and TCP port 9100 printers;
 - PrivatBank POS terminal purchases and cancellation over its TCP JSON protocol;
 - foreground execution and `systemd` operation.
+- signed automatic binary updates from the `main` channel through the Autof API.
 
 Image and bitmap-text blocks are rasterized through ImageMagick. Install the `imagemagick` package if those payloads are used. CUPS printing requires `cups-client`.
 
-Automatic binary updates are intentionally not enabled in the first Ubuntu version. Releases are deployed through the package/install script; the API sees `lastUpdateStatus=manual`.
+Automatic updates are enabled by default. Each push to `main` publishes a signed `linux-x64` release to the Autof API. A root-owned `systemd` timer checks every five minutes, verifies the RSA-PSS manifest signature plus archive size and SHA-256, preserves the previous binary, installs the new one, and restarts the unprivileged agent service. Set `autoUpdateEnabled` to `false` to opt out.
 
 ## Local build
 
@@ -74,6 +75,8 @@ Then edit the installed config and restart:
 sudo editor /etc/avtoforward-agent/agentsettings.json
 sudo systemctl restart avtoforward-agent
 sudo journalctl -u avtoforward-agent -f
+systemctl list-timers avtoforward-agent-update.timer
+journalctl -u avtoforward-agent-update.service
 ```
 
 The installer creates an unprivileged `avtoforward-agent` system user and adds it to the `lp` group. Direct USB mode can still require a printer-specific udev rule granting that group write access.
@@ -86,7 +89,8 @@ The installer creates an unprivileged `avtoforward-agent` system user and adds i
 - the TCP transport sends an unchanged stream to an emulated raw port 9100 printer;
 - a CUPS `lp` shim verifies the destination, raw mode, title, standard-input marker, payload, and error handling;
 - API-shaped `raw-base64`, structured ESC/POS, and TSPL jobs are deserialized and converted to their expected command streams;
-- ESC/POS and TSPL bitmap data use set bits for printed dots;
+- ESC/POS bitmap data uses set bits for printed dots, while TSPL bitmap data uses the Xprinter-compatible inverse polarity;
+- the updater rejects invalid signatures and installs an authenticated archive with a rollback copy;
 - print result JSON uses the field names consumed by `WorkstationAgentGateway`.
 
 Run the suite with:

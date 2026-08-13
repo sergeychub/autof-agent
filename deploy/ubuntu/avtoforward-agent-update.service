@@ -1,0 +1,18 @@
+[Unit]
+Description=Avtoforward Workstation Agent update check
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/opt/avtoforward-agent
+ExecStart=/opt/avtoforward-agent/WorkstationAgent.Ubuntu --config /etc/avtoforward-agent/agentsettings.json --state /var/lib/avtoforward-agent/state.json --update-once
+TimeoutStartSec=15min
+Environment=DOTNET_EnableDiagnostics=0
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/avtoforward-agent /var/lib/avtoforward-agent
