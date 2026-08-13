@@ -58,6 +58,7 @@ public sealed class UbuntuUpdateServiceTests
                 },
                 handler.ReportedStatuses.ToArray());
             Assert.IsTrue(handler.AllRequestsAuthenticated);
+            Assert.IsTrue(handler.AllRequestsUseHttps);
         }
         finally
         {
@@ -237,6 +238,8 @@ public sealed class UbuntuUpdateServiceTests
 
         public bool AllRequestsAuthenticated { get; private set; } = true;
 
+        public bool AllRequestsUseHttps { get; private set; } = true;
+
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
@@ -246,6 +249,7 @@ public sealed class UbuntuUpdateServiceTests
                 request.Headers.Authorization.Parameter == "api-key-1" &&
                 request.Headers.TryGetValues("X-Api-Key", out var values) &&
                 values.Single() == "api-key-1";
+            AllRequestsUseHttps &= request.RequestUri?.Scheme == Uri.UriSchemeHttps;
 
             if (request.Method == HttpMethod.Get && request.RequestUri?.AbsolutePath.EndsWith("/update/latest") == true)
             {

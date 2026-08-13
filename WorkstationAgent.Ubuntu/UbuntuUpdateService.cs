@@ -322,9 +322,13 @@ internal sealed class UbuntuUpdateService
 
     private Uri BuildDownloadEndpoint(string downloadUrl)
     {
-        return Uri.TryCreate(downloadUrl, UriKind.Absolute, out var absolute)
-            ? absolute
-            : BuildEndpoint(downloadUrl);
+        if (Uri.TryCreate(downloadUrl, UriKind.Absolute, out var absolute) &&
+            (absolute.Scheme == Uri.UriSchemeHttp || absolute.Scheme == Uri.UriSchemeHttps))
+        {
+            return absolute;
+        }
+
+        return BuildEndpoint(downloadUrl);
     }
 
     private Uri BuildEndpoint(string path)
