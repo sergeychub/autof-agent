@@ -119,6 +119,24 @@ public sealed class PrintProtocolCompatibilityTests
     }
 
     [TestMethod]
+    public async Task LabelTestLayoutUsesConfiguredMediaSize()
+    {
+        var settings = CreateSettings();
+        settings.LabelPrinter.LabelWidthMm = 58;
+        settings.LabelPrinter.LabelHeightMm = 40;
+
+        var payload = await CreateBuilder().BuildLabelTestAsync(settings, CancellationToken.None);
+        var commands = Encoding.ASCII.GetString(payload);
+
+        StringAssert.Contains(commands, "SIZE 58 mm,40 mm\r\n");
+        StringAssert.Contains(commands, "BOX 10,10,453,309,2\r\n");
+        StringAssert.Contains(commands, "TEXT 20,30,\"2\",0,2,2,\"UBUNTU AGENT OK\"\r\n");
+        StringAssert.Contains(commands, "BARCODE 20,96,\"128\",90,1,0,3,3,\"TEST-123456\"\r\n");
+        StringAssert.Contains(commands, "TEXT 20,240,\"1\",0,1,1,\"58x40 mm ");
+        StringAssert.EndsWith(commands, "PRINT 1\r\n");
+    }
+
+    [TestMethod]
     public void EscPosAndTsplBitmapBitsUseOneForPrintedDots()
     {
         var bitmap = new MonochromeBitmap(8, 1, [0b1000_0001]);

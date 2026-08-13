@@ -101,10 +101,10 @@ internal sealed class PrinterEndpointSettings
     public int MaxImageWidthDots { get; set; } = 384;
 
     [JsonPropertyName("labelWidthMm")]
-    public double LabelWidthMm { get; set; } = 30;
+    public double LabelWidthMm { get; set; } = 58;
 
     [JsonPropertyName("labelHeightMm")]
-    public double LabelHeightMm { get; set; } = 20;
+    public double LabelHeightMm { get; set; } = 40;
 
     [JsonPropertyName("gapMm")]
     public double GapMm { get; set; } = 2;

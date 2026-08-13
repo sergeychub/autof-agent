@@ -6,6 +6,7 @@ namespace WorkstationAgent.Ubuntu;
 internal sealed class PrintPayloadBuilder
 {
     private const byte Xp58Windows1251CharacterTable = 23;
+    private const double LabelDotsPerMillimeter = 8d;
     private readonly ImageMagickRasterizer _rasterizer;
 
     public PrintPayloadBuilder(ImageMagickRasterizer rasterizer)
@@ -76,6 +77,19 @@ internal sealed class PrintPayloadBuilder
     public async Task<byte[]> BuildLabelTestAsync(AgentSettings settings, CancellationToken cancellationToken)
     {
         var endpoint = settings.LabelPrinter;
+        var widthDots = MillimetersToLabelDots(endpoint.LabelWidthMm);
+        var heightDots = MillimetersToLabelDots(endpoint.LabelHeightMm);
+        var margin = Math.Clamp((int)Math.Round(Math.Min(widthDots, heightDots) * 0.03d), 4, 16);
+        var contentX = margin + 10;
+        var headerY = Math.Max(margin + 4, (int)Math.Round(heightDots * 0.09375d));
+        var barcodeY = Math.Max(headerY + 28, (int)Math.Round(heightDots * 0.3d));
+        var barcodeHeight = Math.Max(32, (int)Math.Round(heightDots * 0.28125d));
+        var footerY = Math.Min(heightDots - margin - 16, (int)Math.Round(heightDots * 0.75d));
+        var headerScale = widthDots >= 400 ? 2 : 1;
+        var barcodeModuleWidth = widthDots >= 400 ? 3 : 2;
+        var sizeText = string.Create(
+            CultureInfo.InvariantCulture,
+            $"{endpoint.LabelWidthMm:0.##}x{endpoint.LabelHeightMm:0.##} mm {DateTime.Now:yyyy-MM-dd HH:mm}");
         var label = new TsplLabel
         {
             WidthMm = endpoint.LabelWidthMm,
@@ -87,14 +101,43 @@ internal sealed class PrintPayloadBuilder
             Copies = 1,
             Elements =
             [
-                new TsplElement { Type = "box", X = 5, Y = 5, X2 = 235, Y2 = 150, LineWidth = 2 },
-                new TsplElement { Type = "text", X = 15, Y = 15, Text = "UBUNTU AGENT OK", Font = "2" },
-                new TsplElement { Type = "barcode", X = 15, Y = 48, Content = "TEST-123456", Height = 45 },
-                new TsplElement { Type = "text", X = 15, Y = 120, Text = DateTime.Now.ToString("yyyy-MM-dd HH:mm"), Font = "1" }
+                new TsplElement
+                {
+                    Type = "box",
+                    X = margin,
+                    Y = margin,
+                    X2 = Math.Max(margin + 1, widthDots - margin - 1),
+                    Y2 = Math.Max(margin + 1, heightDots - margin - 1),
+                    LineWidth = 2
+                },
+                new TsplElement
+                {
+                    Type = "text",
+                    X = contentX,
+                    Y = headerY,
+                    Text = "UBUNTU AGENT OK",
+                    Font = "2",
+                    XMultiplier = headerScale,
+                    YMultiplier = headerScale
+                },
+                new TsplElement
+                {
+                    Type = "barcode",
+                    X = contentX,
+                    Y = barcodeY,
+                    Content = "TEST-123456",
+                    Height = barcodeHeight,
+                    Narrow = barcodeModuleWidth,
+                    Wide = barcodeModuleWidth
+                },
+                new TsplElement { Type = "text", X = contentX, Y = footerY, Text = sizeText, Font = "1" }
             ]
         };
         return await BuildTsplAsync(endpoint, label, cancellationToken);
     }
+
+    private static int MillimetersToLabelDots(double value) =>
+        Math.Max(1, (int)Math.Round(value * LabelDotsPerMillimeter, MidpointRounding.AwayFromZero));
 
     private static byte[] BuildText(PrinterEndpointSettings endpoint, PrintJobRequest request)
     {
