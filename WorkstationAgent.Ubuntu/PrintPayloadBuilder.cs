@@ -231,6 +231,8 @@ internal sealed class PrintPayloadBuilder
         WriteLine(stream, $"SIZE {(label.WidthMm ?? endpoint.LabelWidthMm).ToString("0.##", CultureInfo.InvariantCulture)} mm,{(label.HeightMm ?? endpoint.LabelHeightMm).ToString("0.##", CultureInfo.InvariantCulture)} mm", Encoding.ASCII);
         WriteLine(stream, $"GAP {(label.GapMm ?? endpoint.GapMm).ToString("0.##", CultureInfo.InvariantCulture)} mm,0 mm", Encoding.ASCII);
         WriteLine(stream, $"DIRECTION {label.Direction ?? endpoint.Direction}", Encoding.ASCII);
+        WriteLine(stream, "REFERENCE 0,0", Encoding.ASCII);
+        WriteLine(stream, "OFFSET 0 mm", Encoding.ASCII);
         WriteLine(stream, $"SPEED {label.Speed ?? endpoint.Speed}", Encoding.ASCII);
         WriteLine(stream, $"DENSITY {label.Density ?? endpoint.Density}", Encoding.ASCII);
         var codePage = string.IsNullOrWhiteSpace(label.CodePage) ? endpoint.CodePage : label.CodePage;
@@ -289,7 +291,7 @@ internal sealed class PrintPayloadBuilder
             }
         }
 
-        WriteLine(stream, $"PRINT {Math.Max(1, label.Copies ?? 1)}", Encoding.ASCII);
+        WriteLine(stream, $"PRINT {Math.Max(1, label.Copies ?? 1)},1", Encoding.ASCII);
         return stream.ToArray();
     }
 
@@ -334,7 +336,10 @@ internal sealed class PrintPayloadBuilder
         var header = Encoding.ASCII.GetBytes(
             $"BITMAP {element.X},{element.Y},{bitmap.WidthBytes},{bitmap.Height},{Math.Max(0, element.BitmapMode ?? 0)},");
         stream.Write(header);
-        stream.Write(bitmap.Data);
+        foreach (var value in bitmap.Data)
+        {
+            stream.WriteByte((byte)~value);
+        }
         Write(stream, 0x0D, 0x0A);
     }
 

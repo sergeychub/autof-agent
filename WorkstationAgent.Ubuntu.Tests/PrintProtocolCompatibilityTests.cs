@@ -111,11 +111,13 @@ public sealed class PrintProtocolCompatibilityTests
 
         StringAssert.Contains(commands, "SIZE 30 mm,20 mm\r\n");
         StringAssert.Contains(commands, "GAP 2 mm,0 mm\r\n");
+        StringAssert.Contains(commands, "REFERENCE 0,0\r\n");
+        StringAssert.Contains(commands, "OFFSET 0 mm\r\n");
         StringAssert.Contains(commands, "TEXT 10,10,\"2\",0,1,1,\"AUTOF\"\r\n");
         StringAssert.Contains(commands, "BARCODE 10,40,\"128\"");
         StringAssert.Contains(commands, "QRCODE 140,10,M,4,A,0,\"product:123\"");
         StringAssert.Contains(commands, "BOX 2,2,230,150,2");
-        StringAssert.EndsWith(commands, "PRINT 2\r\n");
+        StringAssert.EndsWith(commands, "PRINT 2,1\r\n");
     }
 
     [TestMethod]
@@ -133,7 +135,7 @@ public sealed class PrintProtocolCompatibilityTests
         StringAssert.Contains(commands, "TEXT 20,30,\"2\",0,2,2,\"UBUNTU AGENT OK\"\r\n");
         StringAssert.Contains(commands, "BARCODE 20,96,\"128\",90,1,0,3,3,\"TEST-123456\"\r\n");
         StringAssert.Contains(commands, "TEXT 20,240,\"1\",0,1,1,\"58x40 mm ");
-        StringAssert.EndsWith(commands, "PRINT 1\r\n");
+        StringAssert.EndsWith(commands, "PRINT 1,1\r\n");
     }
 
     [TestMethod]
@@ -193,14 +195,14 @@ public sealed class PrintProtocolCompatibilityTests
     }
 
     [TestMethod]
-    public void TsplBitmapBitsUseOneForPrintedDots()
+    public void TsplBitmapUsesZeroForPrintedDots()
     {
         var bitmap = new MonochromeBitmap(8, 1, [0b1000_0001]);
 
         using var tspl = new MemoryStream();
         PrintPayloadBuilder.WriteTsplBitmap(tspl, new TsplElement { X = 3, Y = 4 }, bitmap);
         CollectionAssert.AreEqual(
-            Encoding.ASCII.GetBytes("BITMAP 3,4,1,1,0,").Concat(new byte[] { 0x81, 0x0D, 0x0A }).ToArray(),
+            Encoding.ASCII.GetBytes("BITMAP 3,4,1,1,0,").Concat(new byte[] { 0x7E, 0x0D, 0x0A }).ToArray(),
             tspl.ToArray());
     }
 
