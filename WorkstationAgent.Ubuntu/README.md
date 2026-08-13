@@ -1,102 +1,322 @@
 # Avtoforward Agent for Ubuntu
 
-Headless Ubuntu implementation of the Autof workstation agent. It uses the existing Autof API contract without backend changes:
+Headless-агент для подключения Ubuntu-компьютера к Autof. Агент регистрируется в API, постоянно поддерживает Socket.IO-соединение и принимает задания на печать чеков, этикеток и оплату через PrivatBank POS-терминал.
 
-- `POST /workstation-agent/register` for first registration;
-- Socket.IO namespace `/workstation-agent` with the existing device ID and API key handshake;
-- `agent:heartbeat`, `printer:test`, `printer:job`, `pos:terminal:purchase`, and `pos:terminal:cancel` events;
-- the same result events as the Windows agent.
+## Быстрый запуск
 
-## Supported features
+### 1. Установить зависимости
 
-- ESC/POS receipt jobs: `text`, `raw-base64`, and structured `document` payloads;
-- TSPL label jobs, including text, barcode, QR, boxes, bars, bitmap text, and base64 bitmaps;
-- CUPS raw queues, direct Linux character devices such as `/dev/usb/lp0`, and TCP port 9100 printers;
-- PrivatBank POS terminal purchases and cancellation over its TCP JSON protocol;
-- foreground execution and `systemd` operation.
-- signed automatic binary updates from the `main` channel through the Autof API.
-
-Image and bitmap-text blocks are rasterized through ImageMagick. Install the `imagemagick` package if those payloads are used. CUPS printing requires `cups-client`.
-
-Automatic updates are enabled by default. Each push to `main` publishes a signed `linux-x64` release to the Autof API. A root-owned `systemd` timer checks every five minutes, verifies the RSA-PSS manifest signature plus archive size and SHA-256, preserves the previous binary, installs the new one, and restarts the unprivileged agent service. Set `autoUpdateEnabled` to `false` to opt out.
-
-## Local build
-
-The target framework is .NET 10, matching the Windows agent:
+Для работы уже опубликованного агента .NET устанавливать не нужно: пакет собирается как self-contained приложение.
 
 ```bash
-dotnet restore WorkstationAgent.Ubuntu/WorkstationAgent.Ubuntu.csproj
-dotnet build WorkstationAgent.Ubuntu/WorkstationAgent.Ubuntu.csproj -c Release
+sudo apt update
+sudo apt install -y cups cups-client imagemagick
+sudo systemctl enable --now cups
 ```
 
-Create a self-contained `linux-x64` package:
+- `cups` и `cups-client` нужны для печати через CUPS;
+- `imagemagick` нужен для логотипов, изображений и растрового текста;
+- если используются только прямое USB-устройство или TCP-принтер, CUPS необязателен.
+
+Для сборки проекта из исходников дополнительно нужен .NET SDK 10.
+
+### 2. Собрать пакет
+
+Из корня репозитория:
 
 ```bash
-./scripts/publish-ubuntu.sh
+./scripts/publish-ubuntu.sh linux-x64 0.1.0-local
 ```
 
-## Configuration
+Готовый self-contained пакет появится в `artifacts/publish/linux-x64`. Если пакет получен из GitHub Actions, этот шаг можно пропустить.
 
-Copy `agentsettings.example.json` to `/etc/avtoforward-agent/agentsettings.json` and set at least:
-
-- `agentName`;
-- `apiBaseUrl`;
-- `registrationToken` (the API's `WORKSTATION_AGENT_REGISTRATION_TOKEN`);
-- the enabled printer transport and its queue/device/network address.
-
-The registration response is written with mode `0600` to `/var/lib/avtoforward-agent/state.json`. It contains `deviceId`, `apiKey`, the registered name, and Socket.IO URL. `registrationToken` stays in the root-owned configuration file and is not copied to state.
-
-Printer transports:
-
-- `cups`: set `printerName` to the CUPS queue and ensure it accepts raw jobs;
-- `device`: set an absolute `devicePath`, normally `/dev/usb/lp0`;
-- `tcp`: set `host` and usually port `9100`.
-
-Useful checks before enabling the service:
-
-```bash
-WorkstationAgent.Ubuntu --validate --config ./agentsettings.json --state ./state.json
-WorkstationAgent.Ubuntu --print-test receipt --config ./agentsettings.json --state ./state.json
-WorkstationAgent.Ubuntu --print-test label --config ./agentsettings.json --state ./state.json
-WorkstationAgent.Ubuntu --pos-test --config ./agentsettings.json --state ./state.json
-```
-
-## Ubuntu installation
-
-After publishing, run as root:
+### 3. Установить агент
 
 ```bash
 sudo ./scripts/install-ubuntu-agent.sh ./artifacts/publish/linux-x64
 ```
 
-Then edit the installed config and restart:
+Скрипт установки:
+
+- копирует приложение в `/opt/avtoforward-agent`;
+- создаёт системного пользователя `avtoforward-agent`;
+- создаёт конфигурацию `/etc/avtoforward-agent/agentsettings.json`;
+- создаёт каталог состояния `/var/lib/avtoforward-agent`;
+- устанавливает сервис `avtoforward-agent.service`;
+- включает таймер автоматических обновлений.
+
+Повторная установка обновляет приложение, но сохраняет существующую конфигурацию и зарегистрированное устройство.
+
+### 4. Настроить подключение
+
+Открыть конфигурацию:
 
 ```bash
-sudo editor /etc/avtoforward-agent/agentsettings.json
-sudo systemctl restart avtoforward-agent
-sudo journalctl -u avtoforward-agent -f
-systemctl list-timers avtoforward-agent-update.timer
-journalctl -u avtoforward-agent-update.service
+sudo nano /etc/avtoforward-agent/agentsettings.json
 ```
 
-The installer creates an unprivileged `avtoforward-agent` system user and adds it to the `lp` group. Direct USB mode can still require a printer-specific udev rule granting that group write access.
+Минимально необходимо заполнить:
 
-## Peripheral-free compatibility checks
+```json
+{
+  "agentName": "ubuntu-warehouse-01",
+  "reportedUserName": "warehouse",
+  "apiBaseUrl": "https://api.autof.com.ua",
+  "socketIoUrl": "",
+  "registrationToken": "CHANGE_ME"
+}
+```
 
-`WorkstationAgent.Ubuntu.Tests` verifies printer control without sending a job to physical hardware:
+- `agentName` — уникальное имя агента, которое будет видно в CRM;
+- `reportedUserName` — имя пользователя или рабочего места;
+- `apiBaseUrl` — для production используется `https://api.autof.com.ua`;
+- `socketIoUrl` — обычно оставить пустым, адрес вернёт API при регистрации;
+- `registrationToken` — значение серверного `WORKSTATION_AGENT_REGISTRATION_TOKEN`. Ключ нужно получить у администратора API и не добавлять в Git.
 
-- the device transport writes an unchanged byte stream to a Linux device-like file;
-- the TCP transport sends an unchanged stream to an emulated raw port 9100 printer;
-- a CUPS `lp` shim verifies the destination, raw mode, title, standard-input marker, payload, and error handling;
-- API-shaped `raw-base64`, structured ESC/POS, and TSPL jobs are deserialized and converted to their expected command streams;
-- ESC/POS bitmap data uses set bits for printed dots, while TSPL bitmap data uses the Xprinter-compatible inverse polarity;
-- the updater rejects invalid signatures and installs an authenticated archive with a rollback copy;
-- print result JSON uses the field names consumed by `WorkstationAgentGateway`.
+Остальные поля из созданного `agentsettings.json` удалять не нужно. Примеры настройки периферии приведены ниже.
 
-Run the suite with:
+### 5. Проверить конфигурацию и запустить
 
 ```bash
+sudo -u avtoforward-agent \
+  /opt/avtoforward-agent/WorkstationAgent.Ubuntu \
+  --validate \
+  --config /etc/avtoforward-agent/agentsettings.json \
+  --state /var/lib/avtoforward-agent/state.json
+
+sudo systemctl enable --now avtoforward-agent
+sudo systemctl status avtoforward-agent --no-pager
+sudo journalctl -u avtoforward-agent -n 50 --no-pager
+```
+
+При первом запуске агент выполнит `POST /workstation-agent/register`. Полученные `deviceId`, `apiKey`, имя и Socket.IO URL будут сохранены в `/var/lib/avtoforward-agent/state.json` с правами `0600`.
+
+В успешном журнале должны появиться сообщения:
+
+```text
+Registration completed
+Socket.IO transport connected
+Agent connection accepted
+```
+
+После этого агент появится в списке онлайн-агентов CRM. Если список был открыт до запуска, обновите страницу.
+
+## Настройка принтера чеков
+
+### CUPS
+
+Посмотреть имена доступных очередей:
+
+```bash
+lpstat -a
+lpstat -p -d
+```
+
+Пример блока `receiptPrinter`:
+
+```json
+"receiptPrinter": {
+  "enabled": true,
+  "transportMode": "cups",
+  "printerName": "XP-80",
+  "devicePath": "/dev/usb/lp0",
+  "host": "192.168.1.50",
+  "port": 9100,
+  "connectTimeoutSeconds": 10,
+  "characterEncoding": "cp866",
+  "feedLinesAfterPrint": 4,
+  "maxImageWidthDots": 576
+}
+```
+
+`printerName` должен полностью совпадать с именем из `lpstat -a`. Для 58-мм принтера обычно используется `maxImageWidthDots: 384`, для 80-мм — `576`.
+
+### Прямое USB-устройство
+
+Проверить путь:
+
+```bash
+ls -l /dev/usb/lp*
+```
+
+Изменить транспорт:
+
+```json
+"enabled": true,
+"transportMode": "device",
+"devicePath": "/dev/usb/lp0"
+```
+
+Установщик добавляет пользователя агента в группу `lp`. Если запись в устройство запрещена, требуется udev-правило для конкретного USB VID/PID принтера.
+
+### TCP-принтер
+
+```json
+"enabled": true,
+"transportMode": "tcp",
+"host": "192.168.1.50",
+"port": 9100
+```
+
+Проверка сети:
+
+```bash
+nc -vz 192.168.1.50 9100
+```
+
+## Настройка принтера этикеток
+
+Пример CUPS-конфигурации этикетки 58 × 40 мм с зазором 2 мм:
+
+```json
+"labelPrinter": {
+  "enabled": true,
+  "transportMode": "cups",
+  "printerName": "TSC-Label",
+  "devicePath": "/dev/usb/lp1",
+  "host": "192.168.1.51",
+  "port": 9100,
+  "connectTimeoutSeconds": 10,
+  "characterEncoding": "ascii",
+  "labelWidthMm": 58,
+  "labelHeightMm": 40,
+  "gapMm": 2,
+  "direction": 0,
+  "speed": 2,
+  "density": 8,
+  "codePage": null
+}
+```
+
+Обязательно укажите фактические `labelWidthMm`, `labelHeightMm` и `gapMm`. Эти значения используются при формировании TSPL-команд `SIZE` и `GAP`. Для прямого USB или TCP поменяйте `transportMode` так же, как для принтера чеков.
+
+## Настройка PrivatBank POS-терминала
+
+Терминал должен находиться в одной доступной сети с Ubuntu-компьютером и принимать PrivatBank JSON-протокол по TCP.
+
+```json
+"posTerminal": {
+  "enabled": true,
+  "host": "192.168.0.110",
+  "port": 2000,
+  "merchantId": "1",
+  "timeoutSeconds": 180
+}
+```
+
+Укажите фактический IP терминала. Желательно закрепить его в DHCP, иначе после смены адреса терминал перестанет получать сумму.
+
+Проверить порт и служебный `PingDevice` без проведения оплаты:
+
+```bash
+nc -vz 192.168.0.110 2000
+
+sudo -u avtoforward-agent \
+  /opt/avtoforward-agent/WorkstationAgent.Ubuntu \
+  --pos-test \
+  --config /etc/avtoforward-agent/agentsettings.json \
+  --state /var/lib/avtoforward-agent/state.json
+```
+
+Успешный ответ содержит `"status":"approved"` и `"responseCode":"0000"`. Команда `--pos-test` не создаёт платёжную транзакцию.
+
+## Тестовая печать
+
+Внимание: следующие команды физически печатают тестовый документ.
+
+```bash
+sudo -u avtoforward-agent \
+  /opt/avtoforward-agent/WorkstationAgent.Ubuntu \
+  --print-test receipt \
+  --config /etc/avtoforward-agent/agentsettings.json \
+  --state /var/lib/avtoforward-agent/state.json
+
+sudo -u avtoforward-agent \
+  /opt/avtoforward-agent/WorkstationAgent.Ubuntu \
+  --print-test label \
+  --config /etc/avtoforward-agent/agentsettings.json \
+  --state /var/lib/avtoforward-agent/state.json
+```
+
+После изменения конфигурации перезапустите сервис:
+
+```bash
+sudo systemctl restart avtoforward-agent
+sudo journalctl -u avtoforward-agent -f
+```
+
+## Повторная регистрация
+
+Обычные изменения принтеров или POS требуют только перезапуска сервиса. Если изменились `agentName`, домен API или ключ регистрации, сохраните старое состояние и зарегистрируйте агент заново:
+
+```bash
+sudo systemctl stop avtoforward-agent
+sudo mv /var/lib/avtoforward-agent/state.json /var/lib/avtoforward-agent/state.json.backup
+sudo systemctl start avtoforward-agent
+sudo journalctl -u avtoforward-agent -f
+```
+
+Если новая регистрация не удалась, остановите сервис и верните `state.json.backup` на место.
+
+## Автоматические обновления
+
+Параметры по умолчанию:
+
+```json
+"autoUpdateEnabled": true,
+"updateChannel": "main"
+```
+
+Каждый push в `main` публикует подписанный `linux-x64`-пакет в Autof API. Systemd-таймер проверяет обновления каждые пять минут, проверяет RSA-PSS подпись, размер и SHA-256, сохраняет предыдущий бинарник и перезапускает агент.
+
+Проверка таймера и последнего обновления:
+
+```bash
+systemctl list-timers avtoforward-agent-update.timer
+sudo systemctl status avtoforward-agent-update.timer --no-pager
+sudo journalctl -u avtoforward-agent-update.service -n 50 --no-pager
+```
+
+## Диагностика
+
+### Агент не появляется в CRM
+
+```bash
+sudo systemctl status avtoforward-agent --no-pager
+sudo journalctl -u avtoforward-agent -n 100 --no-pager
+getent hosts api.autof.com.ua
+```
+
+Проверьте `apiBaseUrl`, `registrationToken`, уникальность `agentName`, системное время и доступ к HTTPS/Socket.IO.
+
+### Принтер не печатает
+
+```bash
+lpstat -a
+ls -l /dev/usb/lp*
+id avtoforward-agent
+```
+
+Проверьте `enabled`, правильность `transportMode`, имя CUPS-очереди, USB-права или доступность TCP-порта.
+
+### POS не получает сумму
+
+```bash
+nc -vz TERMINAL_IP 2000
+sudo journalctl -u avtoforward-agent -f
+```
+
+Проверьте `posTerminal.enabled`, актуальный IP, порт и `merchantId`. В журнале при нажатии кнопки оплаты должно появиться событие `pos:terminal:purchase`.
+
+## Разработка и тесты
+
+Проект использует .NET 10:
+
+```bash
+dotnet restore WorkstationAgent.Ubuntu.Tests/WorkstationAgent.Ubuntu.Tests.csproj \
+  --configfile WorkstationAgent/NuGet.Config
+dotnet build WorkstationAgent.Ubuntu/WorkstationAgent.Ubuntu.csproj -c Release
 dotnet test WorkstationAgent.Ubuntu.Tests/WorkstationAgent.Ubuntu.Tests.csproj -c Release
 ```
 
-These checks cover software and transport compatibility. A final hardware smoke test is still required for USB permissions, the exact printer firmware dialect, media calibration, cutter behavior, and print density.
+Тесты проверяют ESC/POS и TSPL, CUPS/device/TCP-транспорты, JSON-контракты с API и безопасную установку подписанных обновлений. Финальная проверка конкретного принтера всё равно должна учитывать USB-права, прошивку, калибровку носителя, резак и плотность печати.
