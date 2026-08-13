@@ -296,12 +296,38 @@ internal sealed class PrintPayloadBuilder
     internal static void WriteEscPosBitmap(Stream stream, MonochromeBitmap bitmap)
     {
         Write(stream, 0x1B, 0x61, 0x01);
-        Write(stream, 0x1D, 0x76, 0x30, 0x00,
-            (byte)(bitmap.WidthBytes & 0xFF), (byte)((bitmap.WidthBytes >> 8) & 0xFF),
-            (byte)(bitmap.Height & 0xFF), (byte)((bitmap.Height >> 8) & 0xFF));
-        stream.Write(bitmap.Data);
-        Write(stream, 0x0A, 0x1B, 0x61, 0x00);
+        Write(stream, 0x1B, 0x33, 24);
+
+        for (var rowOffset = 0; rowOffset < bitmap.Height; rowOffset += 24)
+        {
+            Write(stream, 0x1B, 0x2A, 33,
+                (byte)(bitmap.Width & 0xFF), (byte)((bitmap.Width >> 8) & 0xFF));
+
+            for (var x = 0; x < bitmap.Width; x++)
+            {
+                for (var slice = 0; slice < 3; slice++)
+                {
+                    byte value = 0;
+                    for (var bit = 0; bit < 8; bit++)
+                    {
+                        var y = rowOffset + slice * 8 + bit;
+                        if (y < bitmap.Height && IsBlackDot(bitmap, x, y))
+                        {
+                            value |= (byte)(0x80 >> bit);
+                        }
+                    }
+                    stream.WriteByte(value);
+                }
+            }
+
+            stream.WriteByte(0x0A);
+        }
+
+        Write(stream, 0x1B, 0x32, 0x1B, 0x61, 0x00);
     }
+
+    private static bool IsBlackDot(MonochromeBitmap bitmap, int x, int y) =>
+        (bitmap.Data[y * bitmap.WidthBytes + x / 8] & (0x80 >> (x % 8))) != 0;
 
     internal static void WriteTsplBitmap(Stream stream, TsplElement element, MonochromeBitmap bitmap)
     {

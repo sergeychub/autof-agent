@@ -137,14 +137,65 @@ public sealed class PrintProtocolCompatibilityTests
     }
 
     [TestMethod]
-    public void EscPosAndTsplBitmapBitsUseOneForPrintedDots()
+    public void EscPosBitmapUsesCompatibleEscStarVerticalSlices()
     {
         var bitmap = new MonochromeBitmap(8, 1, [0b1000_0001]);
         using var escPos = new MemoryStream();
         PrintPayloadBuilder.WriteEscPosBitmap(escPos, bitmap);
         CollectionAssert.AreEqual(
-            new byte[] { 0x1B, 0x61, 0x01, 0x1D, 0x76, 0x30, 0x00, 0x01, 0x00, 0x01, 0x00, 0x81, 0x0A, 0x1B, 0x61, 0x00 },
+            new byte[]
+            {
+                0x1B, 0x61, 0x01,
+                0x1B, 0x33, 24,
+                0x1B, 0x2A, 33, 0x08, 0x00,
+                0x80, 0x00, 0x00,
+                0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00,
+                0x80, 0x00, 0x00,
+                0x0A,
+                0x1B, 0x32,
+                0x1B, 0x61, 0x00
+            },
             escPos.ToArray());
+    }
+
+    [TestMethod]
+    public void EscPosBitmapContinuesInTwentyFourDotBands()
+    {
+        var data = new byte[25];
+        data[0] = 0x80;
+        data[8] = 0x80;
+        data[16] = 0x80;
+        data[24] = 0x80;
+        using var stream = new MemoryStream();
+
+        PrintPayloadBuilder.WriteEscPosBitmap(stream, new MonochromeBitmap(1, 25, data));
+
+        CollectionAssert.AreEqual(
+            new byte[]
+            {
+                0x1B, 0x61, 0x01,
+                0x1B, 0x33, 24,
+                0x1B, 0x2A, 33, 0x01, 0x00,
+                0x80, 0x80, 0x80,
+                0x0A,
+                0x1B, 0x2A, 33, 0x01, 0x00,
+                0x80, 0x00, 0x00,
+                0x0A,
+                0x1B, 0x32,
+                0x1B, 0x61, 0x00
+            },
+            stream.ToArray());
+    }
+
+    [TestMethod]
+    public void TsplBitmapBitsUseOneForPrintedDots()
+    {
+        var bitmap = new MonochromeBitmap(8, 1, [0b1000_0001]);
 
         using var tspl = new MemoryStream();
         PrintPayloadBuilder.WriteTsplBitmap(tspl, new TsplElement { X = 3, Y = 4 }, bitmap);
