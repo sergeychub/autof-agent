@@ -34,6 +34,9 @@ internal sealed class AgentSettings
     [JsonPropertyName("posTerminal")]
     public PosTerminalSettings PosTerminal { get; set; } = new();
 
+    [JsonPropertyName("cashDrawerHotkeyEnabled")]
+    public bool CashDrawerHotkeyEnabled { get; set; } = true;
+
     [JsonPropertyName("reconnectDelaySeconds")]
     public int ReconnectDelaySeconds { get; set; } = 5;
 
@@ -84,6 +87,9 @@ internal sealed class PrinterEndpointSettings
 
     [JsonPropertyName("devicePath")]
     public string? DevicePath { get; set; }
+
+    [JsonPropertyName("deviceSerial")]
+    public string? DeviceSerial { get; set; }
 
     [JsonPropertyName("host")]
     public string? Host { get; set; }

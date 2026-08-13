@@ -130,7 +130,10 @@ internal static class Program
                 printerService,
                 posTerminalService,
                 updateStateStore.ReadStatus);
-            await socketClient.RunAsync(shutdown.Token);
+            var hotkeyService = new CashDrawerHotkeyService(settings, printerService, logger);
+            await Task.WhenAll(
+                socketClient.RunAsync(shutdown.Token),
+                hotkeyService.RunAsync(shutdown.Token));
             logger.Info("Agent stopped.");
             return 0;
         }

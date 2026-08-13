@@ -112,9 +112,11 @@ internal sealed class SettingsStore
             throw new InvalidOperationException($"{name}.printerName is required for the CUPS transport.");
         }
         if (string.Equals(printer.TransportMode, PrinterTransportMode.Device, StringComparison.OrdinalIgnoreCase) &&
+            string.IsNullOrWhiteSpace(printer.DeviceSerial) &&
             (string.IsNullOrWhiteSpace(printer.DevicePath) || !Path.IsPathFullyQualified(printer.DevicePath)))
         {
-            throw new InvalidOperationException($"{name}.devicePath must be an absolute path for the device transport.");
+            throw new InvalidOperationException(
+                $"{name} requires deviceSerial or an absolute devicePath for the device transport.");
         }
         if (string.Equals(printer.TransportMode, PrinterTransportMode.Tcp, StringComparison.OrdinalIgnoreCase) &&
             (string.IsNullOrWhiteSpace(printer.Host) || printer.Port is < 1 or > 65535))

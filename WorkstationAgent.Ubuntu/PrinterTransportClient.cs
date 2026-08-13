@@ -6,12 +6,16 @@ namespace WorkstationAgent.Ubuntu;
 internal sealed class PrinterTransportClient
 {
     private readonly string _cupsExecutable;
+    private readonly LinuxPrinterDeviceResolver _deviceResolver;
 
-    public PrinterTransportClient(string? cupsExecutable = null)
+    public PrinterTransportClient(
+        string? cupsExecutable = null,
+        LinuxPrinterDeviceResolver? deviceResolver = null)
     {
         _cupsExecutable = string.IsNullOrWhiteSpace(cupsExecutable)
             ? ResolveCupsExecutable()
             : cupsExecutable;
+        _deviceResolver = deviceResolver ?? new LinuxPrinterDeviceResolver();
     }
 
     public Task SendAsync(
@@ -35,13 +39,12 @@ internal sealed class PrinterTransportClient
         throw new InvalidOperationException($"Unsupported printer transport '{endpoint.TransportMode}'.");
     }
 
-    private static async Task SendToDeviceAsync(
+    private async Task SendToDeviceAsync(
         PrinterEndpointSettings endpoint,
         byte[] payload,
         CancellationToken cancellationToken)
     {
-        var path = endpoint.DevicePath
-            ?? throw new InvalidOperationException("devicePath is required for device printing.");
+        var path = _deviceResolver.Resolve(endpoint);
         await using var stream = new FileStream(
             path,
             FileMode.Open,
@@ -127,4 +130,60 @@ internal sealed class PrinterTransportClient
 
     private static string ResolveCupsExecutable() =>
         File.Exists("/usr/bin/lp") ? "/usr/bin/lp" : "lp";
+}
+
+internal sealed class LinuxPrinterDeviceResolver
+{
+    private readonly string _sysClassRoot;
+    private readonly string _deviceRoot;
+
+    public LinuxPrinterDeviceResolver(
+        string sysClassRoot = "/sys/class/usbmisc",
+        string deviceRoot = "/dev/usb")
+    {
+        _sysClassRoot = sysClassRoot;
+        _deviceRoot = deviceRoot;
+    }
+
+    public string Resolve(PrinterEndpointSettings endpoint)
+    {
+        var configuredSerial = endpoint.DeviceSerial?.Trim();
+        if (string.IsNullOrWhiteSpace(configuredSerial))
+        {
+            return endpoint.DevicePath
+                ?? throw new InvalidOperationException(
+                    "deviceSerial or devicePath is required for device printing.");
+        }
+
+        if (!Directory.Exists(_sysClassRoot))
+        {
+            throw new InvalidOperationException(
+                $"Linux printer sysfs directory '{_sysClassRoot}' is unavailable.");
+        }
+
+        foreach (var classPath in Directory.EnumerateDirectories(_sysClassRoot, "lp*")
+                     .OrderBy(path => path, StringComparer.Ordinal))
+        {
+            var serialPath = Path.Combine(classPath, "device", "..", "serial");
+            if (!File.Exists(serialPath))
+            {
+                continue;
+            }
+
+            var detectedSerial = File.ReadAllText(serialPath).Trim();
+            if (!string.Equals(detectedSerial, configuredSerial, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var devicePath = Path.Combine(_deviceRoot, Path.GetFileName(classPath));
+            if (File.Exists(devicePath))
+            {
+                return devicePath;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"USB printer with serial '{configuredSerial}' was not found under '{_deviceRoot}'.");
+    }
 }

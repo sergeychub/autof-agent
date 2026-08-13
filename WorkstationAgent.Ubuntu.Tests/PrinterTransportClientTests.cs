@@ -26,6 +26,61 @@ public sealed class PrinterTransportClientTests
     }
 
     [TestMethod]
+    public async Task DeviceTransportResolvesChangingLinuxPathByUsbSerial()
+    {
+        using var temporary = new TemporaryDirectory();
+        var sysClassRoot = Path.Combine(temporary.Path, "sys-class-usbmisc");
+        var classPath = Path.Combine(sysClassRoot, "lp7");
+        Directory.CreateDirectory(Path.Combine(classPath, "device"));
+        File.WriteAllText(Path.Combine(classPath, "serial"), "809444052203\n");
+
+        var deviceRoot = Path.Combine(temporary.Path, "dev-usb");
+        Directory.CreateDirectory(deviceRoot);
+        var resolvedDevicePath = Path.Combine(deviceRoot, "lp7");
+        File.WriteAllBytes(resolvedDevicePath, []);
+
+        var payload = new byte[] { 0x1B, 0x70, 0x00, 0x19, 0xFA };
+        var endpoint = new PrinterEndpointSettings
+        {
+            TransportMode = PrinterTransportMode.Device,
+            DevicePath = "/dev/usb/lp0",
+            DeviceSerial = "809444052203"
+        };
+        var resolver = new LinuxPrinterDeviceResolver(sysClassRoot, deviceRoot);
+
+        await new PrinterTransportClient(deviceResolver: resolver)
+            .SendAsync(endpoint, payload, "cash-drawer", CancellationToken.None);
+
+        CollectionAssert.AreEqual(payload, File.ReadAllBytes(resolvedDevicePath));
+    }
+
+    [TestMethod]
+    public async Task DeviceTransportDoesNotFallBackToWrongPathWhenSerialIsMissing()
+    {
+        using var temporary = new TemporaryDirectory();
+        var sysClassRoot = Path.Combine(temporary.Path, "sys-class-usbmisc");
+        Directory.CreateDirectory(sysClassRoot);
+        var deviceRoot = Path.Combine(temporary.Path, "dev-usb");
+        Directory.CreateDirectory(deviceRoot);
+        var fallbackPath = Path.Combine(deviceRoot, "lp0");
+        File.WriteAllBytes(fallbackPath, []);
+        var endpoint = new PrinterEndpointSettings
+        {
+            TransportMode = PrinterTransportMode.Device,
+            DevicePath = fallbackPath,
+            DeviceSerial = "missing-printer"
+        };
+        var resolver = new LinuxPrinterDeviceResolver(sysClassRoot, deviceRoot);
+
+        var exception = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+            new PrinterTransportClient(deviceResolver: resolver)
+                .SendAsync(endpoint, [0x1B, 0x70, 0x00, 0x19, 0xFA], "cash-drawer", CancellationToken.None));
+
+        StringAssert.Contains(exception.Message, "missing-printer");
+        Assert.AreEqual(0, new FileInfo(fallbackPath).Length);
+    }
+
+    [TestMethod]
     public async Task TcpTransportWritesPayloadToRaw9100Socket()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);

@@ -48,6 +48,9 @@ fi
 if getent group lp >/dev/null; then
   usermod --append --groups lp avtoforward-agent
 fi
+if getent group input >/dev/null; then
+  usermod --append --groups input avtoforward-agent
+fi
 
 if ! command -v lp >/dev/null 2>&1; then
   echo "Warning: CUPS client is missing. Install cups-client before using transportMode=cups." >&2

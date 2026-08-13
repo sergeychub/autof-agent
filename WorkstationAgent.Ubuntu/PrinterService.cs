@@ -150,6 +150,38 @@ internal sealed class PrinterService
         }
     }
 
+    public async Task<bool> OpenCashDrawerAsync(CancellationToken cancellationToken)
+    {
+        const string documentName = "Cash drawer hotkey F6";
+        var endpoint = _settings.ReceiptPrinter;
+        var destination = DestinationName(endpoint);
+        try
+        {
+            await _printLock.WaitAsync(cancellationToken);
+            try
+            {
+                EnsureEnabled(endpoint, "Receipt printer");
+                await _transportClient.SendAsync(
+                    endpoint,
+                    [0x1B, 0x70, 0x00, 0x19, 0xFA],
+                    documentName,
+                    cancellationToken);
+            }
+            finally
+            {
+                _printLock.Release();
+            }
+
+            _logger.Info($"Cash drawer opened by local F6 hotkey through '{destination}'.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Cash drawer F6 hotkey failed for '{destination}'.", ex);
+            return false;
+        }
+    }
+
     public string GetPrinterName(PrintJobRequest? request = null) =>
         DestinationName(request is null ? _settings.ReceiptPrinter : ResolveEndpoint(request));
 
@@ -172,7 +204,9 @@ internal sealed class PrinterService
     {
         if (string.Equals(endpoint.TransportMode, PrinterTransportMode.Device, StringComparison.OrdinalIgnoreCase))
         {
-            return endpoint.DevicePath ?? "device:not-configured";
+            return !string.IsNullOrWhiteSpace(endpoint.DeviceSerial)
+                ? $"device:serial={endpoint.DeviceSerial.Trim()}"
+                : endpoint.DevicePath ?? "device:not-configured";
         }
         if (string.Equals(endpoint.TransportMode, PrinterTransportMode.Tcp, StringComparison.OrdinalIgnoreCase))
         {
