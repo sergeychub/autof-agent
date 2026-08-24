@@ -166,7 +166,8 @@ internal sealed class LogindUserSessionProbe
                 sessionId,
                 "--property=Class",
                 "--property=Active",
-                "--property=State"
+                "--property=State",
+                "--property=LockedHint"
             ],
             cancellationToken);
         var values = properties
@@ -175,13 +176,20 @@ internal sealed class LogindUserSessionProbe
             .Where(parts => parts.Length == 2)
             .ToDictionary(parts => parts[0], parts => parts[1], StringComparer.Ordinal);
 
+        return IsActiveUnlockedUserSession(values);
+    }
+
+    internal static bool IsActiveUnlockedUserSession(IReadOnlyDictionary<string, string> values)
+    {
         return values.TryGetValue("Class", out var sessionClass) &&
                (string.Equals(sessionClass, "user", StringComparison.Ordinal) ||
                 sessionClass.StartsWith("user-", StringComparison.Ordinal)) &&
                values.TryGetValue("Active", out var active) &&
                string.Equals(active, "yes", StringComparison.Ordinal) &&
                values.TryGetValue("State", out var state) &&
-               string.Equals(state, "active", StringComparison.Ordinal);
+               string.Equals(state, "active", StringComparison.Ordinal) &&
+               values.TryGetValue("LockedHint", out var locked) &&
+               string.Equals(locked, "no", StringComparison.Ordinal);
     }
 
     private static async Task<string> RunLoginctlAsync(

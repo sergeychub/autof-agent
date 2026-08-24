@@ -104,6 +104,46 @@ public sealed class CashDrawerHotkeyServiceTests
         Assert.AreEqual(0, callCount);
     }
 
+    [TestMethod]
+    public void ActiveUnlockedUserSessionAllowsTheHotkey()
+    {
+        var properties = SessionProperties(locked: "no");
+
+        Assert.IsTrue(LogindUserSessionProbe.IsActiveUnlockedUserSession(properties));
+    }
+
+    [TestMethod]
+    public void LockedUserSessionBlocksTheHotkey()
+    {
+        var properties = SessionProperties(locked: "yes");
+
+        Assert.IsFalse(LogindUserSessionProbe.IsActiveUnlockedUserSession(properties));
+    }
+
+    [TestMethod]
+    public void MissingLockStateBlocksTheHotkey()
+    {
+        var properties = SessionProperties(locked: null);
+
+        Assert.IsFalse(LogindUserSessionProbe.IsActiveUnlockedUserSession(properties));
+    }
+
+    private static Dictionary<string, string> SessionProperties(string? locked)
+    {
+        var properties = new Dictionary<string, string>
+        {
+            ["Class"] = "user",
+            ["Active"] = "yes",
+            ["State"] = "active"
+        };
+        if (locked is not null)
+        {
+            properties["LockedHint"] = locked;
+        }
+
+        return properties;
+    }
+
     private sealed class TemporaryDirectory : IDisposable
     {
         public TemporaryDirectory()
