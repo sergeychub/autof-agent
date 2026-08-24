@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace WorkstationAgent.Ubuntu;
@@ -7,6 +8,7 @@ internal sealed class CashDrawerHotkeyService
 {
     private readonly AgentSettings _settings;
     private readonly Func<CancellationToken, Task<bool>> _openCashDrawer;
+    private readonly Func<CancellationToken, Task<bool>> _hasActiveUserSession;
     private readonly AgentLogger _logger;
     private readonly IGlobalF6Source? _source;
     private int _opening;
@@ -16,18 +18,25 @@ internal sealed class CashDrawerHotkeyService
         PrinterService printerService,
         AgentLogger logger,
         IGlobalF6Source? source = null)
-        : this(settings, printerService.OpenCashDrawerAsync, logger, source)
+        : this(
+            settings,
+            printerService.OpenCashDrawerAsync,
+            new LogindUserSessionProbe().HasActiveUserSessionAsync,
+            logger,
+            source)
     {
     }
 
     internal CashDrawerHotkeyService(
         AgentSettings settings,
         Func<CancellationToken, Task<bool>> openCashDrawer,
+        Func<CancellationToken, Task<bool>> hasActiveUserSession,
         AgentLogger logger,
         IGlobalF6Source? source = null)
     {
         _settings = settings;
         _openCashDrawer = openCashDrawer;
+        _hasActiveUserSession = hasActiveUserSession;
         _logger = logger;
         _source = source;
     }
@@ -65,6 +74,24 @@ internal sealed class CashDrawerHotkeyService
 
     internal async Task HandleF6Async(CancellationToken cancellationToken)
     {
+        try
+        {
+            if (!await _hasActiveUserSession(cancellationToken))
+            {
+                _logger.Info("Ignored F6 because no active local user session is logged in.");
+                return;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Unable to verify the active local user session; ignoring F6.", ex);
+            return;
+        }
+
         if (Interlocked.CompareExchange(ref _opening, 1, 0) != 0)
         {
             _logger.Info("Ignored repeated F6 while cash drawer opening is in progress.");
@@ -116,6 +143,78 @@ internal sealed class CashDrawerHotkeyService
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
+    }
+}
+
+internal sealed class LogindUserSessionProbe
+{
+    private const string LoginctlPath = "/usr/bin/loginctl";
+
+    public async Task<bool> HasActiveUserSessionAsync(CancellationToken cancellationToken)
+    {
+        var sessionId = (await RunLoginctlAsync(
+            ["show-seat", "seat0", "--property=ActiveSession", "--value"],
+            cancellationToken)).Trim();
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            return false;
+        }
+
+        var properties = await RunLoginctlAsync(
+            [
+                "show-session",
+                sessionId,
+                "--property=Class",
+                "--property=Active",
+                "--property=State"
+            ],
+            cancellationToken);
+        var values = properties
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(line => line.Split('=', 2))
+            .Where(parts => parts.Length == 2)
+            .ToDictionary(parts => parts[0], parts => parts[1], StringComparer.Ordinal);
+
+        return values.TryGetValue("Class", out var sessionClass) &&
+               (string.Equals(sessionClass, "user", StringComparison.Ordinal) ||
+                sessionClass.StartsWith("user-", StringComparison.Ordinal)) &&
+               values.TryGetValue("Active", out var active) &&
+               string.Equals(active, "yes", StringComparison.Ordinal) &&
+               values.TryGetValue("State", out var state) &&
+               string.Equals(state, "active", StringComparison.Ordinal);
+    }
+
+    private static async Task<string> RunLoginctlAsync(
+        IReadOnlyList<string> arguments,
+        CancellationToken cancellationToken)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = LoginctlPath,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Unable to start loginctl.");
+        var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+        await process.WaitForExitAsync(cancellationToken);
+        var output = await outputTask;
+        var error = await errorTask;
+        if (process.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"loginctl exited with code {process.ExitCode}: {error.Trim()}");
+        }
+
+        return output;
     }
 }
 

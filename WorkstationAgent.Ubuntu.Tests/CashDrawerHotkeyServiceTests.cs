@@ -25,7 +25,11 @@ public sealed class CashDrawerHotkeyServiceTests
             settings,
             new AgentLogger(null),
             new PrintPayloadBuilder(new ImageMagickRasterizer()));
-        var service = new CashDrawerHotkeyService(settings, printerService, new AgentLogger(null));
+        var service = new CashDrawerHotkeyService(
+            settings,
+            printerService.OpenCashDrawerAsync,
+            _ => Task.FromResult(true),
+            new AgentLogger(null));
 
         await service.HandleF6Async(CancellationToken.None);
 
@@ -50,6 +54,7 @@ public sealed class CashDrawerHotkeyServiceTests
                 await releaseOpening.Task.WaitAsync(cancellationToken);
                 return true;
             },
+            _ => Task.FromResult(true),
             new AgentLogger(null));
 
         var firstPress = service.HandleF6Async(CancellationToken.None);
@@ -59,6 +64,44 @@ public sealed class CashDrawerHotkeyServiceTests
         Assert.AreEqual(1, callCount);
         releaseOpening.SetResult();
         await firstPress;
+    }
+
+    [TestMethod]
+    public async Task F6IsIgnoredWhenNoUserIsLoggedIn()
+    {
+        var callCount = 0;
+        var service = new CashDrawerHotkeyService(
+            new AgentSettings { CashDrawerHotkeyEnabled = true },
+            _ =>
+            {
+                Interlocked.Increment(ref callCount);
+                return Task.FromResult(true);
+            },
+            _ => Task.FromResult(false),
+            new AgentLogger(null));
+
+        await service.HandleF6Async(CancellationToken.None);
+
+        Assert.AreEqual(0, callCount);
+    }
+
+    [TestMethod]
+    public async Task F6IsIgnoredWhenSessionStatusCannotBeDetermined()
+    {
+        var callCount = 0;
+        var service = new CashDrawerHotkeyService(
+            new AgentSettings { CashDrawerHotkeyEnabled = true },
+            _ =>
+            {
+                Interlocked.Increment(ref callCount);
+                return Task.FromResult(true);
+            },
+            _ => throw new InvalidOperationException("logind unavailable"),
+            new AgentLogger(null));
+
+        await service.HandleF6Async(CancellationToken.None);
+
+        Assert.AreEqual(0, callCount);
     }
 
     private sealed class TemporaryDirectory : IDisposable
