@@ -161,11 +161,12 @@ internal sealed class LinuxPrinterDeviceResolver
                 $"Linux printer sysfs directory '{_sysClassRoot}' is unavailable.");
         }
 
-        foreach (var classPath in Directory.EnumerateDirectories(_sysClassRoot, "lp*")
+        foreach (var classPath in Directory.EnumerateFileSystemEntries(_sysClassRoot, "lp*")
+                     .Where(Directory.Exists)
                      .OrderBy(path => path, StringComparer.Ordinal))
         {
-            var serialPath = Path.Combine(classPath, "device", "..", "serial");
-            if (!File.Exists(serialPath))
+            var serialPath = ResolveSerialPath(classPath);
+            if (serialPath is null)
             {
                 continue;
             }
@@ -185,5 +186,32 @@ internal sealed class LinuxPrinterDeviceResolver
 
         throw new InvalidOperationException(
             $"USB printer with serial '{configuredSerial}' was not found under '{_deviceRoot}'.");
+    }
+
+    private static string? ResolveSerialPath(string classPath)
+    {
+        var resolvedClassPath = new DirectoryInfo(classPath)
+            .ResolveLinkTarget(returnFinalTarget: true)
+            ?.FullName ?? classPath;
+        var deviceLinkPath = Path.Combine(resolvedClassPath, "device");
+        if (Directory.Exists(deviceLinkPath))
+        {
+            var resolvedDevicePath = new DirectoryInfo(deviceLinkPath)
+                .ResolveLinkTarget(returnFinalTarget: true)
+                ?.FullName;
+            var usbDevicePath = resolvedDevicePath is null
+                ? null
+                : Directory.GetParent(resolvedDevicePath)?.FullName;
+            var sysfsSerialPath = usbDevicePath is null
+                ? null
+                : Path.Combine(usbDevicePath, "serial");
+            if (sysfsSerialPath is not null && File.Exists(sysfsSerialPath))
+            {
+                return sysfsSerialPath;
+            }
+        }
+
+        var fixtureSerialPath = Path.Combine(resolvedClassPath, "serial");
+        return File.Exists(fixtureSerialPath) ? fixtureSerialPath : null;
     }
 }

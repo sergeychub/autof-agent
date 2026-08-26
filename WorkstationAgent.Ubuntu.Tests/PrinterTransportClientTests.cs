@@ -30,9 +30,16 @@ public sealed class PrinterTransportClientTests
     {
         using var temporary = new TemporaryDirectory();
         var sysClassRoot = Path.Combine(temporary.Path, "sys-class-usbmisc");
-        var classPath = Path.Combine(sysClassRoot, "lp7");
-        Directory.CreateDirectory(Path.Combine(classPath, "device"));
-        File.WriteAllText(Path.Combine(classPath, "serial"), "809444052203\n");
+        Directory.CreateDirectory(sysClassRoot);
+        var usbDevicePath = Path.Combine(temporary.Path, "sys-devices", "usb1", "1-8");
+        var interfacePath = Path.Combine(usbDevicePath, "1-8:1.0");
+        var realClassPath = Path.Combine(interfacePath, "usbmisc", "lp7");
+        Directory.CreateDirectory(realClassPath);
+        File.WriteAllText(Path.Combine(usbDevicePath, "serial"), "809444052203\n");
+        Directory.CreateSymbolicLink(
+            Path.Combine(realClassPath, "device"),
+            Path.GetRelativePath(realClassPath, interfacePath));
+        Directory.CreateSymbolicLink(Path.Combine(sysClassRoot, "lp7"), realClassPath);
 
         var deviceRoot = Path.Combine(temporary.Path, "dev-usb");
         Directory.CreateDirectory(deviceRoot);
