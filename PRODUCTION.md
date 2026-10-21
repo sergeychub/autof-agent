@@ -69,3 +69,27 @@ The solution also contains the headless `WorkstationAgent.Ubuntu` project. It us
 - Configuration and operational notes: `WorkstationAgent.Ubuntu/README.md`
 
 Ubuntu releases currently use manual package deployment. The signed Windows auto-updater must not be pointed at Linux artifacts until a Linux-specific atomic update and rollback flow is implemented.
+
+## Install on a new Windows x64 workstation
+
+Download `install-latest.ps1` from https://github.com/sergeychub/autof-agent/releases/latest
+and run it in **PowerShell as administrator**:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-latest.ps1
+```
+
+The script downloads the main-channel Windows release over HTTPS, checks its SHA-256
+and size against the release manifest, extracts it and invokes the bundled installer.
+`-DownloadOnly` verifies and extracts without installing or stopping any agent.
+`-ReleaseTag win-main-...` pins a specific release. No GitHub login or .NET installation
+is required. The package is self-contained. No API keys are embedded.
+
+Existing ProgramData settings are preserved; old binaries are backed up under
+`%ProgramData%\Avtoforward\Agent\install-backups`. New PCs open setup with the
+production API address prefilled. Complete registration there and assign the scanner
+in CRM. Install PaperStream IP TWAIN 32-bit separately for the fi-7160.
+
+The GitHub Windows workflow publishes both the signed auto-update package to the backend
+and a GitHub Release with `WorkstationAgent-win-x64.zip`, `manifest.json`, and the installer.
+Blank-side filtering and per-side PDF splitting run on the API, not inside the scanner driver.

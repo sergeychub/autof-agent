@@ -70,4 +70,5 @@ function Publish-Project {
 Publish-Project -ProjectPath $agentProject
 Publish-Project -ProjectPath $updaterProject
 
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'install-agent.ps1') -Destination $publishDir
 Write-Host "Published Avtoforward Agent to $publishDir"

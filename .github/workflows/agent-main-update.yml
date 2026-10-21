@@ -10,6 +10,8 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     env:
       RUNTIME: win-x64
@@ -139,6 +141,25 @@ jobs:
               artifact = Get-Item -LiteralPath $env:PACKAGE_PATH
             }
 
+      - name: Publish Windows installer release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $stableZip = Join-Path $PWD 'artifacts/package/WorkstationAgent-win-x64.zip'
+          Copy-Item -LiteralPath $env:PACKAGE_PATH -Destination $stableZip
+          $notes = @'
+          Windows x64 agent: batch duplex scanning, durable upload/recovery, printing and signed automatic updates.
+          Install: download install-latest.ps1 and run from PowerShell as administrator.
+          Existing workstation settings are preserved. New workstations open registration against api.autof.com.ua.
+          FUJITSU fi-7160 requires the manufacturer's PaperStream IP TWAIN 32-bit driver.
+          Blank-page detection and separate PDFs for each side are handled by the production CRM/API.
+          '@
+          $notesPath = Join-Path $PWD 'artifacts/package/release-notes.txt'
+          $notes | Set-Content -LiteralPath $notesPath -Encoding UTF8
+          gh release create $env:RELEASE_ID $stableZip $env:MANIFEST_PATH scripts/install-latest.ps1 --target '${{ github.sha }}' --title "Windows Agent $env:AGENT_VERSION" --notes-file $notesPath --latest
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub release publication failed.' }
       - name: Upload package artifact
         if: always()
         uses: actions/upload-artifact@v4

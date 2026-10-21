@@ -4,6 +4,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    throw 'Run the installer from PowerShell as administrator.'
+}
 $root = Split-Path -Parent $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($SourcePath)) {
     $SourcePath = Join-Path $root "artifacts\publish\win-x64"
@@ -13,6 +17,9 @@ if (-not (Test-Path $SourcePath)) {
     throw "Publish folder not found: $SourcePath"
 }
 
+foreach ($required in @('WorkstationAgent.exe', 'WorkstationAgent.Updater.exe')) {
+    if (-not (Test-Path -LiteralPath (Join-Path $SourcePath $required))) { throw "Invalid package: missing $required" }
+}
 $programFilesDir = Join-Path ${env:ProgramFiles} "Avtoforward\Agent"
 $programDataDir = Join-Path ${env:ProgramData} "Avtoforward\Agent"
 $startMenuDir = Join-Path ${env:ProgramData} "Microsoft\Windows\Start Menu\Programs\Avtoforward"
@@ -72,8 +79,29 @@ New-Item -ItemType Directory -Force -Path $startMenuDir | Out-Null
 Grant-ProgramDataAccess
 
 Stop-AgentIfRunning
+$resolvedInstall = [IO.Path]::GetFullPath($programFilesDir)
+$expectedInstall = [IO.Path]::GetFullPath((Join-Path ${env:ProgramFiles} 'Avtoforward\Agent'))
+if ($resolvedInstall -ine $expectedInstall -or (Get-Item -LiteralPath $programFilesDir).Attributes.HasFlag([IO.FileAttributes]::ReparsePoint)) {
+    throw 'Unexpected installation directory.'
+}
+$sourceFull = [IO.Path]::GetFullPath((Resolve-Path -LiteralPath $SourcePath).Path)
+if ($sourceFull -ieq $resolvedInstall -or $sourceFull.StartsWith($resolvedInstall + '\', [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Source package must be outside the installation directory.'
+}
+$backupDir = Join-Path $programDataDir ('install-backups\' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+Get-ChildItem -LiteralPath $programFilesDir -Force | Copy-Item -Destination $backupDir -Recurse -Force
 Get-ChildItem -LiteralPath $programFilesDir -Force | Remove-Item -Recurse -Force
-Copy-Item -Path (Join-Path $SourcePath "*") -Destination $programFilesDir -Recurse -Force
+try {
+    Copy-Item -Path (Join-Path $SourcePath "*") -Destination $programFilesDir -Recurse -Force
+} catch {
+    Copy-Item -Path (Join-Path $backupDir '*') -Destination $programFilesDir -Recurse -Force
+    throw
+}
+$configPath = Join-Path $programDataDir 'agentsettings.json'
+if (-not (Test-Path -LiteralPath $configPath)) {
+    '{"apiBaseUrl":"https://api.autof.com.ua"}' | Set-Content -LiteralPath $configPath -Encoding UTF8
+}
 
 $wsh = New-Object -ComObject WScript.Shell
 $shortcut = $wsh.CreateShortcut((Join-Path $startMenuDir "Avtoforward Agent.lnk"))
@@ -90,6 +118,10 @@ $escapedInstallDir = $programFilesDir.Replace("'", "''")
 $escapedProgramDataDir = $programDataDir.Replace("'", "''")
 $runnerScript = @"
 `$ErrorActionPreference = "Stop"
+$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    throw 'Run the installer from PowerShell as administrator.'
+}
 try {
     Add-Type -Namespace AvtoforwardAgent -Name NativeMethods -MemberDefinition @'
 [System.Runtime.InteropServices.DllImport("kernel32.dll")]
