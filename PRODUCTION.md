@@ -35,6 +35,27 @@ Smoke-test note: a push to `main` is enough to publish a new signed agent versio
 After bootstrap, the settings window title and header show the installed agent version, which is the quickest visual check on a workstation.
 The elevated updater also refreshes its ProgramData runner script during updates, so fixes to the update runner are carried forward after the first successful update.
 
+## Document scanners on Windows
+
+Install the manufacturer's **32-bit TWAIN driver**, even on 64-bit Windows: the isolated
+NAPS2 worker uses TWAIN 32-bit. For FUJITSU fi-7160 use PaperStream IP (TWAIN).
+The heartbeat advertises scanner keys to the CRM scanner registry. Register the selected
+key against its warehouse and optionally make it the warehouse default.
+
+The CRM offers simplex feeder, duplex feeder, or flatbed capture at 300 dpi. Feeder jobs
+are uploaded as one PDF (up to 100 pages / 50 MB); replacing an existing page captures
+one side and uploads PNG. Load only one sheet when replacing a page.
+
+Spool: `%ProgramData%\Avtoforward\Agent\scans`. A durable `.started` marker prevents a
+duplicate command or restart from feeding another batch. Upload retries reuse the saved
+file. Interrupted or failed batches remain locally, including `.partial.pdf` on paper jams;
+recover those documents manually through CRM file upload. Successful uploads remove the
+local scan but retain the small receipt markers. Do not delete markers for active jobs.
+Auto-update checks defer while scanner jobs are active.
+
+NAPS2 components are dynamically linked under LGPL-2.1-or-later; see `THIRD-PARTY-NOTICES.txt`
+and the bundled LGPL text. Scanner support does not alter printer or POS configuration.
+
 ## MSI
 
 `build-msi.ps1` is included as a production packaging entrypoint, but this environment does not currently have WiX Toolset installed. Once WiX is present, the MSI wrapper can be added around the published runtime in `artifacts\publish\win-x64`.

@@ -25,6 +25,7 @@ internal sealed class UpdateCheckService : IDisposable
     private readonly UpdateStateStore _stateStore;
     private readonly HttpClient _httpClient;
     private bool _publicKeyWarningLogged;
+    public Func<bool>? IsBusy { get; set; }
 
     public UpdateCheckService(
         AgentSettings settings,
@@ -85,6 +86,7 @@ internal sealed class UpdateCheckService : IDisposable
 
     private async Task CheckOnceAsync(CancellationToken cancellationToken)
     {
+        if (IsBusy?.Invoke() == true) return;
         if (!UpdateTrust.IsConfigured(UpdateTrust.ManifestPublicKeyPem))
         {
             if (!_publicKeyWarningLogged)
@@ -139,7 +141,7 @@ internal sealed class UpdateCheckService : IDisposable
 
         TryWriteState(UpdateStatuses.Available, manifest.ReleaseId, manifest.Version, "Update manifest accepted.");
         await TryReportAsync(manifest, UpdateStatuses.Available, "Update manifest accepted.", cancellationToken);
-        await StartUpdaterTaskAsync(manifest, cancellationToken);
+        if (IsBusy?.Invoke() != true) await StartUpdaterTaskAsync(manifest, cancellationToken);
     }
 
     private void ValidateManifest(UpdateManifest manifest)

@@ -52,7 +52,11 @@ jobs:
         shell: pwsh
         run: dotnet test WorkstationAgent.Update.Tests/WorkstationAgent.Update.Tests.csproj --configuration Release --no-restore
 
-      - name: Publish
+      - name: Test scanner delivery and recovery
+        shell: pwsh
+        run: dotnet test WorkstationAgent.Tests/WorkstationAgent.Tests.csproj --configuration Release --no-restore
+
+      - name: Publish runtime
         shell: pwsh
         run: ./scripts/publish-production.ps1 -Runtime $env:RUNTIME -Version $env:AGENT_VERSION
 

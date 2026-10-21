@@ -18,6 +18,9 @@
 
   <ItemGroup>
     <PackageReference Include="Krypton.Toolkit" Version="105.26.4.110" />
+    <PackageReference Include="NAPS2.Images.Gdi" Version="1.5.0" />
+    <PackageReference Include="NAPS2.Sdk" Version="1.5.0" />
+    <PackageReference Include="NAPS2.Sdk.Worker.Win32" Version="1.5.0" />
     <PackageReference Include="SocketIOClient" Version="3.1.2" />
   </ItemGroup>
 
@@ -27,6 +30,8 @@
 
   <ItemGroup>
     <Compile Remove="obj\**\*.cs" />
+    <None Update="THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="LICENSE-NAPS2.txt" CopyToOutputDirectory="PreserveNewest" />
     <Compile Remove="bin\**\*.cs" />
     <None Update="agentsettings.json">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>

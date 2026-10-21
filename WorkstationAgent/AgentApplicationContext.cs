@@ -60,6 +60,7 @@ internal sealed class AgentApplicationContext : ApplicationContext
             () => _updateStateStore.ReadStatus(),
             () => AgentVersionProvider.CurrentVersion);
         _updateCheckService = new UpdateCheckService(settings, paths, _logger, _updateStateStore);
+        _updateCheckService.IsBusy = () => _webSocketClient.IsScannerBusy;
         _webSocketClient.StatusChanged += HandleStatusChanged;
         _webSocketClient.MessageReceived += HandleMessageReceived;
 

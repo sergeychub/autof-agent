@@ -1,0 +1,7 @@
+Document scanning uses NAPS2 SDK, NAPS2.Images.Gdi, and NAPS2.Worker.Win32 1.5.0.
+Copyright NAPS2 contributors. Licensed under LGPL-2.1-or-later.
+Source and license: https://github.com/cyanfish/naps2
+SDK package versions: https://www.nuget.org/packages/NAPS2.Sdk/1.5.0
+These libraries are dynamically linked and can be replaced with compatible builds.
+No NAPS2 source modifications are made by this application. The applicable LGPL text
+is included in LICENSE-NAPS2.txt. Other dependencies retain their original licenses.

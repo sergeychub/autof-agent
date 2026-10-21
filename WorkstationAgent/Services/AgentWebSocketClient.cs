@@ -4,6 +4,7 @@ using SocketIOClient.Transport;
 using WorkstationAgent.Configuration;
 using WorkstationAgent.Infrastructure;
 using WorkstationAgent.Models;
+using WorkstationAgent.Scanning;
 
 namespace WorkstationAgent.Services;
 
@@ -15,6 +16,8 @@ internal sealed class AgentWebSocketClient : IAsyncDisposable
     private readonly PosTerminalService _posTerminalService;
     private readonly Func<string> _lastUpdateStatusProvider;
     private readonly Func<string> _agentVersionProvider;
+    private readonly ScannerJobService _scannerJobs;
+    public bool IsScannerBusy => _scannerJobs.IsBusy;
     private SocketIOClient.SocketIO? _socket;
     private TaskCompletionSource _connectedSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -32,6 +35,11 @@ internal sealed class AgentWebSocketClient : IAsyncDisposable
         _posTerminalService = posTerminalService;
         _lastUpdateStatusProvider = lastUpdateStatusProvider;
         _agentVersionProvider = agentVersionProvider;
+        _scannerJobs = new ScannerJobService(settings, logger,
+            Path.Combine(new AgentPaths().BaseDirectory, "scans"), async payload =>
+            {
+                if (_socket?.Connected == true) await _socket.EmitAsync("scanner:job-status", payload);
+            });
     }
 
     public event Action<string>? StatusChanged;
@@ -60,6 +68,7 @@ internal sealed class AgentWebSocketClient : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        await _scannerJobs.DisposeAsync();
         if (_socket is null)
         {
             return;
@@ -161,6 +170,8 @@ internal sealed class AgentWebSocketClient : IAsyncDisposable
             _ = HandlePosTerminalCancelAsync(socket, response);
         });
 
+        socket.On("scanner:job", response => _scannerJobs.Start(response.GetValue<JsonElement>()));
+        socket.On("scanner:cancel", response => _scannerJobs.Cancel(response.GetValue<JsonElement>()));
         return socket;
     }
 
@@ -176,6 +187,7 @@ internal sealed class AgentWebSocketClient : IAsyncDisposable
                 agentVersion = _agentVersionProvider(),
                 updateChannel = _settings.UpdateChannel,
                 lastUpdateStatus = _lastUpdateStatusProvider(),
+                scanners = await _scannerJobs.Discover(cancellationToken),
                 timestamp = DateTimeOffset.UtcNow
             };
 
