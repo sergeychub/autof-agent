@@ -118,8 +118,8 @@ $escapedInstallDir = $programFilesDir.Replace("'", "''")
 $escapedProgramDataDir = $programDataDir.Replace("'", "''")
 $runnerScript = @"
 `$ErrorActionPreference = "Stop"
-$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
-if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+`$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+if (-not `$principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     throw 'Run the installer from PowerShell as administrator.'
 }
 try {

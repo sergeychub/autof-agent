@@ -23,6 +23,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Test installer runner generation in Windows PowerShell 5.1
+        shell: powershell
+        run: ./scripts/test-installer-runner.ps1
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
