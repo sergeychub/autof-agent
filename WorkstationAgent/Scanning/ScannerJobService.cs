@@ -29,7 +29,7 @@ internal sealed class ScannerJobService : IAsyncDisposable
         _directory = directory;
         Directory.CreateDirectory(directory);
         _scanner = scanner ?? new DocumentScanner(Path.Combine(directory, "temp"));
-        _http = http ?? new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
+        _http = http ?? new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
         _sendStatus = sendStatus;
     }
 
@@ -47,9 +47,10 @@ internal sealed class ScannerJobService : IAsyncDisposable
         var cts = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
         if (!_jobs.TryAdd(jobId, cts)) { cts.Dispose(); return; }
         var source = command.TryGetProperty("source", out var s) ? s.GetString() : "Flatbed";
+        var uploadOnly = command.TryGetProperty("uploadOnly", out var resume) && resume.ValueKind == JsonValueKind.True;
         _tasks[jobId] = Task.Run(async () =>
         {
-            try { await Process(jobId, source ?? "Flatbed", cts.Token); }
+            try { await Process(jobId, source ?? "Flatbed", uploadOnly, cts.Token); }
             finally { _jobs.TryRemove(jobId, out _); cts.Dispose(); }
         });
     }
@@ -82,7 +83,7 @@ internal sealed class ScannerJobService : IAsyncDisposable
         catch (Exception ex) { _logger.Error($"Scanner status delivery failed: {jobId} {status}", ex); }
     }
 
-    private async Task Process(Guid id, string source, CancellationToken ct)
+    private async Task Process(Guid id, string source, bool uploadOnly, CancellationToken ct)
     {
         string state = "RUNNING";
         using var heartbeatStop = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -95,6 +96,10 @@ internal sealed class ScannerJobService : IAsyncDisposable
             var singlePage = job.TryGetProperty("replacesPageId", out var replacement) && replacement.ValueKind == JsonValueKind.Number;
             var path = Path.Combine(_directory, id + (singlePage ? ".png" : ".pdf"));
             var ready = path + ".ready";
+            // Explicit recovery may send an existing file only. Missing markers,
+            // missing files and partial scans must never fall back to moving paper.
+            if (uploadOnly && (!File.Exists(ready) || !File.Exists(path) || new FileInfo(path).Length == 0))
+                throw new InvalidOperationException("Готовый скан для повторной отправки не найден. Сохранённые файлы не изменены; повторное сканирование не запускалось.");
             await Status(id, state);
             heartbeat = Task.Run(async () =>
             {
@@ -110,6 +115,9 @@ internal sealed class ScannerJobService : IAsyncDisposable
             });
             if (!File.Exists(ready))
             {
+                // Recheck at the hardware boundary as files may change after
+                // the initial recovery check or while status delivery awaits.
+                if (uploadOnly) throw new InvalidOperationException("Метка готового скана исчезла. Повторное сканирование не запускалось.");
                 // Persist before moving paper. Replayed commands must never feed another batch.
                 using (var marker = new FileStream(path + ".started", FileMode.CreateNew, FileAccess.Write, FileShare.None))
                     marker.Flush(true);
@@ -119,8 +127,7 @@ internal sealed class ScannerJobService : IAsyncDisposable
                 await File.WriteAllTextAsync(ready, pages.ToString(), ct);
                 _logger.Info($"Scanner job {id}: batch saved locally ({pages} pages).");
             }
-            if (new FileInfo(path).Length > 50L * 1024 * 1024)
-                throw new InvalidOperationException("Пачка больше 50 МБ. PDF сохранён на компьютере агента; загрузите его частями.");
+            ScannerLimits.EnsureFileSize(new FileInfo(path).Length);
             state = "UPLOADING";
             await Status(id, state);
             for (var attempt = 0; ; attempt++)

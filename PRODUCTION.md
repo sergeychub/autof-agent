@@ -43,7 +43,7 @@ The heartbeat advertises scanner keys to the CRM scanner registry. Register the 
 key against its warehouse and optionally make it the warehouse default.
 
 The CRM offers simplex feeder, duplex feeder, or flatbed capture at 300 dpi. Feeder jobs
-are uploaded as one PDF (up to 100 pages / 50 MB); replacing an existing page captures
+are uploaded as one PDF (up to 500 sides / 250 MiB); replacing an existing page captures
 one side and uploads PNG. Load only one sheet when replacing a page.
 
 Spool: `%ProgramData%\Avtoforward\Agent\scans`. A durable `.started` marker prevents a
@@ -52,6 +52,15 @@ file. Interrupted or failed batches remain locally, including `.partial.pdf` on 
 recover those documents manually through CRM file upload. Successful uploads remove the
 local scan but retain the small receipt markers. Do not delete markers for active jobs.
 Auto-update checks defer while scanner jobs are active.
+
+The scanner upload timeout is 30 minutes, including server-side processing. An explicit
+`scanner:job` command with `uploadOnly: true` only uploads an existing nonempty file
+with its `.ready` marker; it never starts the scanner when either is missing. The API
+must explicitly reopen an eligible failed job before sending that recovery command.
+Partial PDFs without a ready marker still require manual recovery.
+Only agents advertising `scannerSupportsUploadOnly: true` in the current Socket.IO
+authentication/heartbeat can receive recovery commands. Older agents ignore that
+command flag and must be rejected by the API until they update and reconnect.
 
 NAPS2 components are dynamically linked under LGPL-2.1-or-later; see `THIRD-PARTY-NOTICES.txt`
 and the bundled LGPL text. Scanner support does not alter printer or POS configuration.

@@ -119,6 +119,7 @@ internal sealed class AgentWebSocketClient : IAsyncDisposable
                 machineName = Environment.MachineName,
                 userName = Environment.UserName,
                 apiKey = _settings.ApiKey,
+                scannerSupportsUploadOnly = true,
                 agentVersion = _agentVersionProvider(),
                 updateChannel = _settings.UpdateChannel,
                 lastUpdateStatus = _lastUpdateStatusProvider()
@@ -187,6 +188,7 @@ internal sealed class AgentWebSocketClient : IAsyncDisposable
                 agentVersion = _agentVersionProvider(),
                 updateChannel = _settings.UpdateChannel,
                 lastUpdateStatus = _lastUpdateStatusProvider(),
+                scannerSupportsUploadOnly = true,
                 scanners = await _scannerJobs.Discover(cancellationToken),
                 timestamp = DateTimeOffset.UtcNow
             };

@@ -92,11 +92,7 @@ internal sealed class DocumentScanner : IDocumentScanner
             {
                 images.Add(image);
                 progress?.Invoke(images.Count);
-                if (images.Count > 100)
-                {
-                    scanCancel.Cancel();
-                    throw new InvalidOperationException("В пачке больше 100 страниц. Полученные страницы сохранены локально; разделите PDF перед загрузкой.");
-                }
+                ScannerLimits.EnsurePageCount(images.Count, scanCancel);
                 if (singlePage)
                 {
                     scanCancel.Cancel();
