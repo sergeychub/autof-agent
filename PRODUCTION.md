@@ -35,6 +35,17 @@ Smoke-test note: a push to `main` is enough to publish a new signed agent versio
 After bootstrap, the settings window title and header show the installed agent version, which is the quickest visual check on a workstation.
 The elevated updater also refreshes its ProgramData runner script during updates, so fixes to the update runner are carried forward after the first successful update.
 
+## Cash drawer F8 on Windows
+
+Enable **Open cash drawer with F8** in the receipt printer settings, or set
+`cashDrawerHotkeyEnabled: true`. It defaults to false for existing installations.
+The global F8 hotkey sends ESC/POS `1B 70 00 19 FA` through the configured, enabled
+receipt printer. Direct USB requires explicit VID/PID. No CRM/API request is involved.
+Holding F8 does not repeat; overlapping requests are ignored. The hotkey is released
+when the agent exits and does not handle requests while its Windows session is locked.
+Printer sends are serialized with regular receipt jobs. The drawer must be physically
+connected to the printer's drawer connector (pin 2).
+
 ## Document scanners on Windows
 
 Install the manufacturer's **32-bit TWAIN driver**, even on 64-bit Windows: the isolated

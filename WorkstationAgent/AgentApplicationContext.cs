@@ -18,6 +18,7 @@ internal sealed class AgentApplicationContext : ApplicationContext
     private readonly UpdateStateStore _updateStateStore;
     private readonly ThermalPrinterService _thermalPrinterService;
     private readonly PosTerminalService _posTerminalService;
+    private readonly CashDrawerHotkeyWindow? _cashDrawerHotkey;
     private readonly CancellationTokenSource _shutdown = new();
     private readonly SynchronizationContext _uiContext;
     private readonly AgentSettingsStore _settingsStore;
@@ -86,6 +87,15 @@ internal sealed class AgentApplicationContext : ApplicationContext
             ToolTipIcon.Info);
         _logger.Info(_thermalPrinterService.GetAvailabilityStatus());
 
+        if (settings.CashDrawerHotkeyEnabled)
+        {
+            var drawer = new CashDrawerService(settings, _logger, _thermalPrinterService.SendCashDrawerPulse);
+            _cashDrawerHotkey = new CashDrawerHotkeyWindow(drawer, _logger);
+            if (!_cashDrawerHotkey.Register())
+                _notifyIcon.ShowBalloonTip(5000, AvtoforwardBranding.AppName,
+                    "F8 could not be registered for the cash drawer. See the agent log.", ToolTipIcon.Error);
+        }
+
         _ = Task.Run(() => _webSocketClient.RunAsync(_shutdown.Token));
         _ = Task.Run(() => _updateCheckService.RunAsync(_shutdown.Token));
     }
@@ -95,6 +105,7 @@ internal sealed class AgentApplicationContext : ApplicationContext
         if (disposing)
         {
             _shutdown.Cancel();
+            _cashDrawerHotkey?.Dispose();
             _webSocketClient.DisposeAsync().AsTask().GetAwaiter().GetResult();
             _updateCheckService.Dispose();
             _notifyIcon.Visible = false;

@@ -17,6 +17,7 @@ internal partial class SetupWizardFormCore
         StartWithWindowsCheckBox.Checked = InitialSettings.StartWithWindows;
 
         ReceiptPrinterEnabledCheckBox.Checked = InitialSettings.ReceiptPrinter.Enabled;
+        CashDrawerHotkeyEnabledCheckBox.Checked = InitialSettings.CashDrawerHotkeyEnabled;
         ReceiptTransportModeComboBox.SelectedItem = string.IsNullOrWhiteSpace(InitialSettings.ReceiptPrinter.TransportMode)
             ? PrinterTransportMode.WindowsSpooler
             : InitialSettings.ReceiptPrinter.TransportMode;
@@ -134,6 +135,7 @@ internal partial class SetupWizardFormCore
             SocketIoUrl = InitialSettings.SocketIoUrl,
             ApiKey = InitialSettings.ApiKey,
             StartWithWindows = StartWithWindowsCheckBox.Checked,
+            CashDrawerHotkeyEnabled = CashDrawerHotkeyEnabledCheckBox.Checked,
             ReceiptPrinter = new ReceiptPrinterSettings
             {
                 Enabled = ReceiptPrinterEnabledCheckBox.Checked,

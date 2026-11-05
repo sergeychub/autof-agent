@@ -23,6 +23,7 @@ internal partial class SetupWizardFormCore : KryptonForm
     protected readonly KryptonTextBox ReceiptUsbProductIdTextBox;
     protected readonly KryptonComboBox ReceiptImageCommandModeComboBox;
     protected readonly KryptonCheckBox ReceiptPrinterEnabledCheckBox;
+    protected readonly KryptonCheckBox CashDrawerHotkeyEnabledCheckBox;
     protected readonly KryptonComboBox LabelPrinterComboBox;
     protected readonly KryptonComboBox LabelTransportModeComboBox;
     protected readonly KryptonTextBox LabelUsbVendorIdTextBox;
@@ -92,6 +93,7 @@ internal partial class SetupWizardFormCore : KryptonForm
         ReceiptUsbProductIdTextBox = FindControl<KryptonTextBox>("ReceiptUsbProductIdTextBox");
         ReceiptImageCommandModeComboBox = FindControl<KryptonComboBox>("ReceiptImageCommandModeComboBox");
         ReceiptPrinterEnabledCheckBox = FindControl<KryptonCheckBox>("ReceiptPrinterEnabledCheckBox");
+        CashDrawerHotkeyEnabledCheckBox = FindControl<KryptonCheckBox>("CashDrawerHotkeyEnabledCheckBox");
         LabelPrinterComboBox = FindControl<KryptonComboBox>("LabelPrinterComboBox");
         LabelTransportModeComboBox = FindControl<KryptonComboBox>("LabelTransportModeComboBox");
         LabelUsbVendorIdTextBox = FindControl<KryptonTextBox>("LabelUsbVendorIdTextBox");

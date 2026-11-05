@@ -22,6 +22,9 @@ internal sealed class AgentSettings
     [JsonPropertyName("startWithWindows")]
     public bool StartWithWindows { get; set; } = true;
 
+    [JsonPropertyName("cashDrawerHotkeyEnabled")]
+    public bool CashDrawerHotkeyEnabled { get; set; }
+
     [JsonPropertyName("receiptPrinter")]
     public ReceiptPrinterSettings ReceiptPrinter { get; set; } = new();
 
@@ -181,6 +184,7 @@ internal sealed class AgentSettings
             SocketIoUrl = SocketIoUrl,
             ApiKey = ApiKey,
             StartWithWindows = StartWithWindows,
+            CashDrawerHotkeyEnabled = CashDrawerHotkeyEnabled,
             ReceiptPrinter = ReceiptPrinter?.Clone() ?? new ReceiptPrinterSettings(),
             LabelPrinter = LabelPrinter?.Clone() ?? new LabelPrinterSettings(),
             PosTerminal = PosTerminal?.Clone() ?? new PosTerminalSettings(),

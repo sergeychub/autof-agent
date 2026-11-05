@@ -302,6 +302,13 @@ internal partial class SetupWizardFormCore
         openLogsButton.Click += (_, _) => OpenPath(Paths.LogsDirectory);
         layout.Controls.Add(openLogsButton, 1, 8);
 
+        layout.Controls.Add(new KryptonCheckBox
+        {
+            Name = "CashDrawerHotkeyEnabledCheckBox",
+            Text = "Open cash drawer with F8",
+            AutoSize = true
+        }, 1, 9);
+
         group.Panel.Controls.Add(layout);
         return group;
     }

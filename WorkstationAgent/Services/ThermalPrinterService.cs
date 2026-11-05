@@ -18,6 +18,7 @@ internal sealed class ThermalPrinterService
     private readonly TsplPayloadBuilder _tsplPayloadBuilder;
     private readonly TsplTestLabelBuilder _tsplTestLabelBuilder;
     private readonly PrinterTransportResolver _transportResolver;
+    private readonly object _sendLock = new();
 
     public ThermalPrinterService(
         AgentSettings settings,
@@ -48,6 +49,12 @@ internal sealed class ThermalPrinterService
     public bool IsConfigured => IsEndpointConfigured(_settings.ReceiptPrinter) || IsEndpointConfigured(_settings.LabelPrinter);
 
     public string PrinterName => _settings.ReceiptPrinter.PrinterName;
+
+    internal void SendCashDrawerPulse(ReceiptPrinterSettings endpoint, byte[] bytes)
+    {
+        EnsurePrinterReady(endpoint, "Receipt printer");
+        SendBytes(endpoint, bytes, "WorkstationAgent Cash Drawer F8");
+    }
 
     public string GetAvailabilityStatus()
     {
@@ -292,8 +299,11 @@ internal sealed class ThermalPrinterService
 
     private void SendBytes(PrinterEndpointSettings endpoint, byte[] bytes, string documentName)
     {
-        var transport = _transportResolver.Resolve(endpoint);
-        transport.Send(endpoint, bytes, documentName);
+        lock (_sendLock)
+        {
+            var transport = _transportResolver.Resolve(endpoint);
+            transport.Send(endpoint, bytes, documentName);
+        }
     }
 
     private string ResolveDestinationName(PrinterEndpointSettings endpoint)
