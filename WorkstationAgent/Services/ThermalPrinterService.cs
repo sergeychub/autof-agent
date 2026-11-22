@@ -20,6 +20,22 @@ internal sealed class ThermalPrinterService
     private readonly PrinterTransportResolver _transportResolver;
     private readonly object _sendLock = new();
 
+    public static ThermalPrinterService Create(AgentSettings settings, AgentPaths paths, FileLogger logger)
+    {
+        var discovery = new PrinterDiscoveryService();
+        var transport = new PrinterTransportResolver(
+            new WindowsSpoolerTransport(discovery, new RawPrinterClient()),
+            new DirectUsbTransport(new UsbPrinterDiscoveryService(), new DirectUsbPrinterClient()));
+        var imageRenderer = new EscPosImageRenderer();
+        var tsplPayloadBuilder = new TsplPayloadBuilder();
+
+        return new ThermalPrinterService(
+            settings, paths, logger, discovery,
+            new EscPosTestReceiptBuilder(), new EscPosPayloadBuilder(),
+            imageRenderer, new EscPosDocumentBuilder(imageRenderer),
+            tsplPayloadBuilder, new TsplTestLabelBuilder(tsplPayloadBuilder), transport);
+    }
+
     public ThermalPrinterService(
         AgentSettings settings,
         AgentPaths paths,

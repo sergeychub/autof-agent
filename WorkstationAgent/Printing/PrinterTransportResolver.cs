@@ -4,12 +4,12 @@ namespace WorkstationAgent.Printing;
 
 internal sealed class PrinterTransportResolver
 {
-    private readonly WindowsSpoolerTransport _windowsSpoolerTransport;
-    private readonly DirectUsbTransport _directUsbTransport;
+    private readonly IPrinterTransport _windowsSpoolerTransport;
+    private readonly IPrinterTransport _directUsbTransport;
 
     public PrinterTransportResolver(
-        WindowsSpoolerTransport windowsSpoolerTransport,
-        DirectUsbTransport directUsbTransport)
+        IPrinterTransport windowsSpoolerTransport,
+        IPrinterTransport directUsbTransport)
     {
         _windowsSpoolerTransport = windowsSpoolerTransport;
         _directUsbTransport = directUsbTransport;

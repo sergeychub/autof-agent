@@ -10,9 +10,10 @@ internal static class AvtoforwardBranding
 
     public static Icon CreateTrayIcon()
     {
-        var logo = CreateHeaderLogoBitmap(64, 64);
-        var handle = logo.GetHicon();
-        return Icon.FromHandle(handle);
+        var path = GetAssetPath("app.ico");
+        return path is null
+            ? (Icon)SystemIcons.Application.Clone()
+            : new Icon(path, SystemInformation.SmallIconSize);
     }
 
     public static Bitmap CreateHeaderLogoBitmap(int width, int height)

@@ -5,3 +5,8 @@ SDK package versions: https://www.nuget.org/packages/NAPS2.Sdk/1.5.0
 These libraries are dynamically linked and can be replaced with compatible builds.
 No NAPS2 source modifications are made by this application. The applicable LGPL text
 is included in LICENSE-NAPS2.txt. Other dependencies retain their original licenses.
+
+The settings and tray UI use MaterialDesignThemes and MaterialDesignColors 5.3.2.
+Copyright James Willock, Mulholland Software and Contributors. Licensed under MIT.
+Source: https://github.com/MaterialDesignInXAML/MaterialDesignInXamlToolkit
+The MIT license is included in LICENSE-MATERIALDESIGN.txt.

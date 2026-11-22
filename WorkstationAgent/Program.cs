@@ -1,7 +1,4 @@
 using System.Text;
-using Krypton.Toolkit;
-using WorkstationAgent.Branding;
-using WorkstationAgent.Configuration;
 using WorkstationAgent.Forms;
 using WorkstationAgent.Infrastructure;
 
@@ -10,15 +7,10 @@ namespace WorkstationAgent;
 internal static class Program
 {
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         ApplicationConfiguration.Initialize();
-        using var kryptonPalette = new KryptonManager
-        {
-            GlobalPaletteMode = PaletteMode.Microsoft365BlueLightMode
-        };
-
         var paths = new AgentPaths();
         paths.EnsureDirectories();
         var settingsStore = new AgentSettingsStore(paths);
@@ -27,9 +19,9 @@ internal static class Program
 
         if (settingsStore.RequiresSetup(settings))
         {
-            using var setupWizard = new SetupWizardForm(settings, settingsStore, paths, isFirstRun: true);
+            var setupWizard = new SetupWizardForm(settings, settingsStore, paths, isFirstRun: true);
             var result = setupWizard.ShowDialog();
-            if (result != DialogResult.OK || setupWizard.SavedSettings is null)
+            if (result != true || setupWizard.SavedSettings is null)
             {
                 return;
             }
@@ -38,6 +30,10 @@ internal static class Program
         }
 
         using var agentContext = new AgentApplicationContext(settingsStore, paths, settings);
+#if DEBUG
+        if (paths.IsDevelopment && args.Contains("--settings", StringComparer.Ordinal))
+            agentContext.OpenSettingsWhenIdle();
+#endif
         Application.Run(agentContext);
     }
 }
