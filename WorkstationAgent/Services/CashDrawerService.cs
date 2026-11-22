@@ -9,13 +9,16 @@ internal sealed class CashDrawerService
     private readonly AgentSettings _settings;
     private readonly FileLogger _logger;
     private readonly Action<ReceiptPrinterSettings, byte[]> _send;
+    private readonly Action<CashDrawerAttempt>? _record;
     private int _busy;
 
-    public CashDrawerService(AgentSettings settings, FileLogger logger, Action<ReceiptPrinterSettings, byte[]> send)
+    public CashDrawerService(AgentSettings settings, FileLogger logger, Action<ReceiptPrinterSettings, byte[]> send,
+        Action<CashDrawerAttempt>? record = null)
     {
         _settings = settings;
         _logger = logger;
         _send = send;
+        _record = record;
     }
 
     public async Task<bool> TryOpenAsync()
@@ -26,6 +29,10 @@ internal sealed class CashDrawerService
             return false;
         }
 
+        var id = Guid.NewGuid();
+        var occurredAt = DateTimeOffset.UtcNow;
+        var success = false;
+        string? error = null;
         try
         {
             var endpoint = _settings.ReceiptPrinter.Clone();
@@ -41,17 +48,30 @@ internal sealed class CashDrawerService
 
             // ESC p: connector pin 2, 50 ms on / 500 ms off. No paper feed or cut.
             await Task.Run(() => _send(endpoint, [0x1B, 0x70, 0x00, 0x19, 0xFA])).ConfigureAwait(false);
+            success = true;
             _logger.Info("Cash drawer F8 pulse sent to the configured receipt printer.");
             return true;
         }
         catch (Exception ex)
         {
+            error = ex.Message.Length <= 500 ? ex.Message : ex.Message[..500];
             _logger.Error("Cash drawer F8 failed.", ex);
             return false;
         }
         finally
         {
-            Volatile.Write(ref _busy, 0);
+            try
+            {
+                _record?.Invoke(new CashDrawerAttempt(id, occurredAt, success, error));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _logger.Error("Could not save the cash drawer event for upload.", ex);
+            }
+            finally
+            {
+                Volatile.Write(ref _busy, 0);
+            }
         }
     }
 }

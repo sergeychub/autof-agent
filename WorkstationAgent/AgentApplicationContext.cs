@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Drawing;
+using MaterialDesignThemes.Wpf;
 using WorkstationAgent.Branding;
 using WorkstationAgent.Configuration;
 using WorkstationAgent.Forms;
@@ -12,6 +13,8 @@ namespace WorkstationAgent;
 internal sealed class AgentApplicationContext : ApplicationContext
 {
     private readonly NotifyIcon _notifyIcon;
+    private readonly Icon _trayIcon;
+    private readonly ContextMenuStrip _trayMenu;
     private readonly FileLogger _logger;
     private readonly AgentWebSocketClient _webSocketClient;
     private readonly UpdateCheckService _updateCheckService;
@@ -24,6 +27,8 @@ internal sealed class AgentApplicationContext : ApplicationContext
     private readonly AgentSettingsStore _settingsStore;
     private readonly AgentPaths _paths;
     private AgentSettings _settings;
+    private SetupWizardForm? _settingsWindow;
+    private string _connectionStatus = "Connecting";
 
     public AgentApplicationContext(AgentSettingsStore settingsStore, AgentPaths paths, AgentSettings settings)
     {
@@ -33,25 +38,7 @@ internal sealed class AgentApplicationContext : ApplicationContext
         _uiContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
         _logger = new FileLogger(settings.LogFilePath);
         _updateStateStore = new UpdateStateStore(paths.UpdateStatePath);
-        var discoveryService = new Printing.PrinterDiscoveryService();
-        var rawPrinterClient = new Printing.RawPrinterClient();
-        var transportResolver = new Printing.PrinterTransportResolver(
-            new Printing.WindowsSpoolerTransport(discoveryService, rawPrinterClient),
-            new Printing.DirectUsbTransport(new Printing.UsbPrinterDiscoveryService(), new Printing.DirectUsbPrinterClient()));
-        var imageRenderer = new Printing.EscPosImageRenderer();
-        var tsplPayloadBuilder = new Printing.TsplPayloadBuilder();
-        _thermalPrinterService = new ThermalPrinterService(
-            settings,
-            paths,
-            _logger,
-            discoveryService,
-            new Printing.EscPosTestReceiptBuilder(),
-            new Printing.EscPosPayloadBuilder(),
-            imageRenderer,
-            new Printing.EscPosDocumentBuilder(imageRenderer),
-            tsplPayloadBuilder,
-            new Printing.TsplTestLabelBuilder(tsplPayloadBuilder),
-            transportResolver);
+        _thermalPrinterService = ThermalPrinterService.Create(settings, paths, _logger);
         _posTerminalService = new PosTerminalService(settings, _logger);
         _webSocketClient = new AgentWebSocketClient(
             settings,
@@ -65,18 +52,22 @@ internal sealed class AgentApplicationContext : ApplicationContext
         _webSocketClient.StatusChanged += HandleStatusChanged;
         _webSocketClient.MessageReceived += HandleMessageReceived;
 
-        var startupManager = new WindowsStartupManager(
-            appName: "AvtoforwardAgent",
-            executablePath: Application.ExecutablePath);
+        if (!paths.IsDevelopment)
+        {
+            var startupManager = new WindowsStartupManager(
+                appName: "AvtoforwardAgent",
+                executablePath: Application.ExecutablePath);
+            startupManager.EnsureStartup(settings.StartWithWindows);
+        }
 
-        startupManager.EnsureStartup(settings.StartWithWindows);
-
+        _trayIcon = AvtoforwardBranding.CreateTrayIcon();
+        _trayMenu = BuildMenu();
         _notifyIcon = new NotifyIcon
         {
-            Icon = AvtoforwardBranding.CreateTrayIcon(),
+            Icon = _trayIcon,
             Visible = true,
             Text = AvtoforwardBranding.AppName,
-            ContextMenuStrip = BuildMenu()
+            ContextMenuStrip = _trayMenu
         };
 
         _notifyIcon.DoubleClick += (_, _) => OpenSettingsWindow();
@@ -87,9 +78,11 @@ internal sealed class AgentApplicationContext : ApplicationContext
             ToolTipIcon.Info);
         _logger.Info(_thermalPrinterService.GetAvailabilityStatus());
 
+        var cashDrawerJournal = new CashDrawerJournal(Path.Combine(paths.BaseDirectory, "cash-drawer-outbox"), settings, _logger);
+        _ = Task.Run(() => cashDrawerJournal.RunAsync(_shutdown.Token));
         if (settings.CashDrawerHotkeyEnabled)
         {
-            var drawer = new CashDrawerService(settings, _logger, _thermalPrinterService.SendCashDrawerPulse);
+            var drawer = new CashDrawerService(settings, _logger, _thermalPrinterService.SendCashDrawerPulse, cashDrawerJournal.Enqueue);
             _cashDrawerHotkey = new CashDrawerHotkeyWindow(drawer, _logger);
             if (!_cashDrawerHotkey.Register())
                 _notifyIcon.ShowBalloonTip(5000, AvtoforwardBranding.AppName,
@@ -97,7 +90,8 @@ internal sealed class AgentApplicationContext : ApplicationContext
         }
 
         _ = Task.Run(() => _webSocketClient.RunAsync(_shutdown.Token));
-        _ = Task.Run(() => _updateCheckService.RunAsync(_shutdown.Token));
+        if (!paths.IsDevelopment)
+            _ = Task.Run(() => _updateCheckService.RunAsync(_shutdown.Token));
     }
 
     protected override void Dispose(bool disposing)
@@ -110,6 +104,8 @@ internal sealed class AgentApplicationContext : ApplicationContext
             _updateCheckService.Dispose();
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();
+            _trayMenu.Dispose();
+            _trayIcon.Dispose();
             _shutdown.Dispose();
         }
 
@@ -118,15 +114,17 @@ internal sealed class AgentApplicationContext : ApplicationContext
 
     private ContextMenuStrip BuildMenu()
     {
-        var menu = new ContextMenuStrip();
-        menu.Items.Add("Settings", null, (_, _) => OpenSettingsWindow());
-        menu.Items.Add("Open config file", null, (_, _) => OpenPath(_settingsStore.SettingsPath));
-        menu.Items.Add("Print test receipt", null, (_, _) => PrintTestReceipt());
-        menu.Items.Add("Print test logo", null, (_, _) => PrintTestLogo());
-        menu.Items.Add("Print test label", null, (_, _) => PrintTestLabel());
-        menu.Items.Add("Test POS terminal", null, async (_, _) => await TestPosTerminal());
-        menu.Items.Add("Open logs", null, (_, _) => OpenLogsFolder());
-        menu.Items.Add("Exit", null, (_, _) => ExitThread());
+        var menu = new TrayMenu();
+        menu.AddCommand("Открыть AutoF Agent", PackIconKind.ViewDashboardOutline, (_, _) => OpenSettingsWindow());
+        menu.AddCommand("Файл настроек", PackIconKind.FileCogOutline, (_, _) => OpenPath(_settingsStore.SettingsPath));
+        menu.AddCommand("Папка журналов", PackIconKind.FolderOpenOutline, (_, _) => OpenLogsFolder());
+        menu.Items.Add(new ToolStripSeparator());
+        menu.AddCommand("Напечатать пробный чек", PackIconKind.ReceiptTextOutline, (_, _) => PrintTestReceipt());
+        menu.AddCommand("Напечатать логотип", PackIconKind.ImageOutline, (_, _) => PrintTestLogo());
+        menu.AddCommand("Напечатать пробную этикетку", PackIconKind.TagOutline, (_, _) => PrintTestLabel());
+        menu.AddCommand("Проверить терминал", PackIconKind.CreditCardOutline, async (_, _) => await TestPosTerminal());
+        menu.Items.Add(new ToolStripSeparator());
+        menu.AddCommand("Выйти из агента", PackIconKind.ExitToApp, (_, _) => ExitThread());
         return menu;
     }
 
@@ -134,6 +132,8 @@ internal sealed class AgentApplicationContext : ApplicationContext
     {
         _uiContext.Post(_ =>
         {
+            _connectionStatus = status;
+            _settingsWindow?.SetConnectionStatus(status);
             _notifyIcon.Text = $"{AvtoforwardBranding.AppName} - {TrimForTooltip(status)}";
         }, null);
     }
@@ -219,11 +219,36 @@ internal sealed class AgentApplicationContext : ApplicationContext
         }
     }
 
+#if DEBUG
+    internal void OpenSettingsWhenIdle()
+    {
+        Application.Idle += Open;
+
+        void Open(object? sender, EventArgs e)
+        {
+            Application.Idle -= Open;
+            OpenSettingsWindow();
+        }
+    }
+#endif
+
     private void OpenSettingsWindow()
     {
-        using var setupWizard = new SetupWizardForm(_settings, _settingsStore, _paths, isFirstRun: false);
-        var result = setupWizard.ShowDialog();
-        if (result != DialogResult.OK || setupWizard.SavedSettings is null)
+        if (_settingsWindow is not null)
+        {
+            if (_settingsWindow.WindowState == System.Windows.WindowState.Minimized)
+                _settingsWindow.WindowState = System.Windows.WindowState.Normal;
+            _settingsWindow.Activate();
+            return;
+        }
+
+        var setupWizard = new SetupWizardForm(_settings, _settingsStore, _paths, isFirstRun: false);
+        setupWizard.SetConnectionStatus(_connectionStatus);
+        _settingsWindow = setupWizard;
+        bool? result;
+        try { result = setupWizard.ShowDialog(); }
+        finally { _settingsWindow = null; }
+        if (result != true || setupWizard.SavedSettings is null)
         {
             return;
         }

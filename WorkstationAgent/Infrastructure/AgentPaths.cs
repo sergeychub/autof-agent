@@ -8,6 +8,16 @@ internal sealed class AgentPaths
             Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
             "Avtoforward",
             "Agent");
+
+#if DEBUG
+        var developmentDataDirectory = Environment.GetEnvironmentVariable("AUTOF_AGENT_DEV_DATA_DIR");
+        if (!string.IsNullOrWhiteSpace(developmentDataDirectory))
+        {
+            BaseDirectory = Path.GetFullPath(developmentDataDirectory);
+            IsDevelopment = true;
+        }
+#endif
+
         LogsDirectory = Path.Combine(BaseDirectory, "logs");
         ConfigPath = Path.Combine(BaseDirectory, "agentsettings.json");
         LogFilePath = Path.Combine(LogsDirectory, "agent.log");
@@ -19,6 +29,7 @@ internal sealed class AgentPaths
         LogoPngPath = Path.Combine(BundledAssetsDirectory, "logo.png");
     }
 
+    public bool IsDevelopment { get; }
     public string BaseDirectory { get; }
 
     public string LogsDirectory { get; }

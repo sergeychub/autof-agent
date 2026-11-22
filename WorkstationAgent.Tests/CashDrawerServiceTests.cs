@@ -132,4 +132,25 @@ public sealed class CashDrawerServiceTests
         var stored = JsonSerializer.Deserialize<AgentSettings>(JsonSerializer.Serialize(enabled))!;
         Assert.IsTrue(stored.CashDrawerHotkeyEnabled);
     }
+
+    [TestMethod]
+    public async Task RecordsEachAcceptedAttemptWithItsOwnOutcome()
+    {
+        var attempts = new List<CashDrawerAttempt>();
+        var sends = 0;
+        var service = new CashDrawerService(Configured(), Logger, (_, _) =>
+        {
+            if (++sends == 2) throw new IOException("Printer offline");
+        }, attempts.Add);
+
+        Assert.IsTrue(await service.TryOpenAsync());
+        Assert.IsFalse(await service.TryOpenAsync());
+
+        Assert.AreEqual(2, attempts.Count);
+        Assert.AreNotEqual(attempts[0].Id, attempts[1].Id);
+        Assert.IsTrue(attempts[0].Success);
+        Assert.IsNull(attempts[0].Error);
+        Assert.IsFalse(attempts[1].Success);
+        Assert.AreEqual("Printer offline", attempts[1].Error);
+    }
 }

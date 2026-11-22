@@ -37,10 +37,14 @@ The elevated updater also refreshes its ProgramData runner script during updates
 
 ## Cash drawer F8 on Windows
 
-Enable **Open cash drawer with F8** in the receipt printer settings, or set
+Enable **Открывать денежный ящик по клавише F8** in the receipt printer settings, or set
 `cashDrawerHotkeyEnabled: true`. It defaults to false for existing installations.
 The global F8 hotkey sends ESC/POS `1B 70 00 19 FA` through the configured, enabled
-receipt printer. Direct USB requires explicit VID/PID. No CRM/API request is involved.
+receipt printer. Direct USB requires explicit VID/PID. The agent saves the send
+result locally and uploads it to the CRM when the API is reachable. The CRM
+attributes an F8 event to the shift active at the time of the press when exactly
+one eligible operator has the workstation configured as their receipt agent.
+The journal records whether the printer command was sent.
 Holding F8 does not repeat; overlapping requests are ignored. The hotkey is released
 when the agent exits and does not handle requests while its Windows session is locked.
 Printer sends are serialized with regular receipt jobs. The drawer must be physically
